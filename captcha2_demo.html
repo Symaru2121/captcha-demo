@@ -1,0 +1,1186 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Impossible Reality Demo</title>
+  <style>
+    /* Reset and base layout */
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      min-height: 100%;
+      background: #ecebe7;
+      font-family: Arial, sans-serif;
+    }
+
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 24px;
+      box-sizing: border-box;
+    }
+
+    #demo-root {
+      width: 100%;
+      max-width: 760px;
+    }
+
+    #canvas-shell {
+      width: 100%;
+      aspect-ratio: 1.38 / 1;
+      min-height: 420px;
+      background: #f5f5f5;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+      position: relative;
+    }
+
+    #captchaCanvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Controls panel */
+    #controls {
+      margin-top: 14px;
+      background: #ffffff;
+      border: 1px solid #dad7d1;
+      border-radius: 16px;
+      padding: 14px 16px 16px;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.05);
+    }
+
+    .controls-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: space-between;
+    }
+
+    .controls-row label {
+      color: #222;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .controls-buttons {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    #complexityRange {
+      width: 100%;
+      margin-top: 12px;
+      accent-color: #01696F;
+    }
+
+    #metaRow {
+      margin-top: 10px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      color: #666;
+      font-size: 13px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    #tierBadge {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #efefef;
+      color: #333;
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid #d0d0d0;
+      background: #fff;
+      color: #222;
+      border-radius: 10px;
+      padding: 9px 14px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+    }
+
+    button:hover {
+      background: #f7f7f7;
+      border-color: #b8b8b8;
+    }
+
+    button:active {
+      background: #f0f0f0;
+    }
+
+    button:focus-visible {
+      outline: 2px solid rgba(66,133,244,0.5);
+      outline-offset: 2px;
+    }
+
+    button[hidden] {
+      display: none;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 560px) {
+      body {
+        padding: 12px;
+      }
+      #canvas-shell {
+        min-height: 360px;
+      }
+      .controls-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .controls-buttons {
+        justify-content: stretch;
+      }
+      .controls-buttons button {
+        flex: 1;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="demo-root">
+    <div id="canvas-shell">
+      <canvas id="captchaCanvas" aria-label="Captcha Impossible Reality"></canvas>
+    </div>
+
+    <div id="controls">
+      <div class="controls-row">
+        <label for="complexityRange">Сложность: <span id="complexityValue">50</span></label>
+        <div class="controls-buttons">
+          <button id="refreshBtn" type="button">Обновить</button>
+          <button id="newTaskBtn" type="button" hidden>Новое задание</button>
+        </div>
+      </div>
+      <input id="complexityRange" type="range" min="1" max="100" value="50" step="1">
+      <div id="metaRow">
+        <span id="tierBadge">Medium</span>
+        <span id="confidenceLabel">Уверенность: —</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================================
+    // Difficulty tier constants
+    // =========================================================================
+    var DIFFICULTY = { EASY: 1, MEDIUM: 2, HARD: 3, EXPERT: 4 };
+
+    // =========================================================================
+    // All 96 challenge sets (copied verbatim from sets.go)
+    // =========================================================================
+    var CHALLENGE_SETS = [
+      // Easy — sets 1..32
+      {id:1,difficulty:1,topic:1,absurdIndex:3,statements:["Кот спит на подушке","Рыба плавает в воде","Птица поёт на ветке","Камень летает по небу"]},
+      {id:2,difficulty:1,topic:2,absurdIndex:3,statements:["Чайник греет воду","Лампа светит в комнате","Холодильник хранит еду","Подушка печёт хлеб"]},
+      {id:3,difficulty:1,topic:3,absurdIndex:3,statements:["Дождь падает с неба","Снег лежит на крыше","Листья шуршат на ветру","Река горит синим огнём"]},
+      {id:4,difficulty:1,topic:4,absurdIndex:3,statements:["Хлеб лежит на тарелке","Яблоко растёт на дереве","Суп наливают в миску","Ложка кусает кашу"]},
+      {id:5,difficulty:1,topic:5,absurdIndex:3,statements:["Автобус едет по улице","Люди ждут на остановке","Светофор меняет цвет","Дом прыгает через дорогу"]},
+      {id:6,difficulty:1,topic:6,absurdIndex:3,statements:["Учитель пишет на доске","Дети сидят за партами","Звонок зовёт на урок","Тетрадь сама ест мел"]},
+      {id:7,difficulty:1,topic:7,absurdIndex:3,statements:["Шапка греет голову","Ботинки стоят у двери","Куртка висит на крючке","Носок читает газету"]},
+      {id:8,difficulty:1,topic:8,absurdIndex:3,statements:["Солнце светит утром","Облака плывут по небу","Ветер качает деревья","Град варит компот"]},
+      {id:9,difficulty:1,topic:9,absurdIndex:3,statements:["Поезд идёт по рельсам","Самолёт летит в небе","Велосипед стоит у стены","Колесо поёт в хоре"]},
+      {id:10,difficulty:1,topic:10,absurdIndex:3,statements:["Кастрюля стоит на плите","Нож режет хлеб","Кружка полна чая","Сковорода рисует портрет"]},
+      {id:11,difficulty:1,topic:11,absurdIndex:3,statements:["Цветы растут у забора","Пчела летит к клеверу","Трава зеленеет весной","Забор плывёт в пруду домой"]},
+      {id:12,difficulty:1,topic:1,absurdIndex:3,statements:["Собака бежит за мячом","Корова ест траву","Лошадь тянет телегу","Стул доит корову"]},
+      {id:13,difficulty:1,topic:12,absurdIndex:3,statements:["Лодка качается на волнах","Утка плавает в пруду","Море шумит ночью","Песок плавает быстрее рыб"]},
+      {id:14,difficulty:1,topic:13,absurdIndex:3,statements:["Дети играют в парке","Скамейка стоит у тропы","Белка сидит на сосне","Фонарь ест мороженое"]},
+      {id:15,difficulty:1,topic:14,absurdIndex:3,statements:["Будильник звонит рано","Люди пьют кофе утром","Полотенце висит в ванной","Зеркало гуляет во дворе"]},
+      {id:16,difficulty:1,topic:15,absurdIndex:3,statements:["Продавец стоит у кассы","Покупатель кладёт хлеб в корзину","Тележка едет по залу","Колбаса читает ценник"]},
+      {id:17,difficulty:1,topic:16,absurdIndex:3,statements:["Грибы растут под ёлкой","Муравьи бегут по земле","Лиса прячется в кустах","Пень играет на трубе"]},
+      {id:18,difficulty:1,topic:17,absurdIndex:3,statements:["Морковь растёт в земле","Лейка поливает грядки","Садовник копает лопатой","Капуста водит трактор"]},
+      {id:19,difficulty:1,topic:18,absurdIndex:3,statements:["Дети лепят снеговика","Лёд блестит на реке","Шарф закрывает шею","Снежинка жарит картошку"]},
+      {id:20,difficulty:1,topic:19,absurdIndex:3,statements:["Люди купаются в озере","Песок греется на солнце","Очки лежат на полотенце","Арбуз крутит педали"]},
+      {id:21,difficulty:1,topic:20,absurdIndex:3,statements:["Петух поёт на рассвете","Куры клюют зерно","Сено лежит в сарае","Ведро несёт овцу"]},
+      {id:22,difficulty:1,topic:21,absurdIndex:3,statements:["Одеяло лежит на кровати","Шкаф стоит у стены","Часы тикают тихо","Матрас улетает на луну"]},
+      {id:23,difficulty:1,topic:5,absurdIndex:3,statements:["Машины стоят у светофора","Дворник метёт тротуар","Пешеход идёт по переходу","Асфальт поёт колыбельную"]},
+      {id:24,difficulty:1,topic:1,absurdIndex:3,statements:["Заяц бежит по полю","Воробей клюёт крошки","Коза жуёт листья","Облако пасётся в сарае"]},
+      {id:25,difficulty:1,topic:22,absurdIndex:3,statements:["Вода течёт из крана","Мыло лежит в мыльнице","Щётка стоит в стакане","Полка плавает под потолком"]},
+      {id:26,difficulty:1,topic:23,absurdIndex:3,statements:["Такси ждёт пассажира","Шины катятся по дороге","Фара светит ночью","Руль печёт пироги"]},
+      {id:27,difficulty:1,topic:24,absurdIndex:3,statements:["Официант несёт поднос","Посетители сидят за столом","Чашка стоит на блюдце","Салфетка варит суп"]},
+      {id:28,difficulty:1,topic:25,absurdIndex:3,statements:["Книги стоят на полке","Читатель листает роман","Лампа освещает стол","Закладка водит автобус"]},
+      {id:29,difficulty:1,topic:26,absurdIndex:3,statements:["Мяч летит в ворота","Бегун стартует с дорожки","Судья свистит в свисток","Трава надевает кроссовки"]},
+      {id:30,difficulty:1,topic:10,absurdIndex:3,statements:["Сахар лежит в банке","Хлеб режут ножом","Молоко наливают в стакан","Тарелка едет в лифте одна"]},
+      {id:31,difficulty:1,topic:27,absurdIndex:3,statements:["Лопата стоит у сарая","Ягоды зреют на кусте","Ворота открыты днём","Грядка звонит по телефону"]},
+      {id:32,difficulty:1,topic:28,absurdIndex:3,statements:["Луна видна вечером","Звёзды мерцают ночью","Самолёт оставляет след","Туча надевает сапоги"]},
+
+      // Medium — sets 33..64
+      {id:33,difficulty:2,topic:2,absurdIndex:3,statements:["Пол сохнет после уборки","Окно запотевает зимой","Пылесос шумит при работе","Тень оставляет мокрые следы"]},
+      {id:34,difficulty:2,topic:9,absurdIndex:3,statements:["Лифт поднимается на этаж","Метро приезжает к платформе","Водитель держит руль","Билет сам открывает двери"]},
+      {id:35,difficulty:2,topic:10,absurdIndex:3,statements:["Пар идёт от горячего супа","Лёд тает в стакане","Духовка печёт пирог","Запах режут кухонным ножом"]},
+      {id:36,difficulty:2,topic:29,absurdIndex:3,statements:["Принтер печатает листы","Клавиатура лежит на столе","Сотрудник читает письмо","Монитор пьёт кофе из кружки"]},
+      {id:37,difficulty:2,topic:8,absurdIndex:3,statements:["Туман закрывает дорогу","Молния сверкает в грозе","Радуга появляется после дождя","Эхо прячется под зонтом"]},
+      {id:38,difficulty:2,topic:1,absurdIndex:3,statements:["Ёж сворачивается клубком","Бобр строит плотину","Сова охотится ночью","Следы убегают от лисы"]},
+      {id:39,difficulty:2,topic:2,absurdIndex:3,statements:["Шторы закрывают окно","Ключ открывает замок","Ковёр лежит на полу","Сквозняк завязывает шнурки"]},
+      {id:40,difficulty:2,topic:6,absurdIndex:3,statements:["Мел оставляет след на доске","Рюкзак висит на стуле","Линейка помогает чертить","Перемена спит в пенале"]},
+      {id:41,difficulty:2,topic:15,absurdIndex:3,statements:["Касса считает покупку","Пакет шуршит в руке","Ценник висит на полке","Скидка уезжает на самокате"]},
+      {id:42,difficulty:2,topic:30,absurdIndex:3,statements:["Чемодан катят по вокзалу","Пассажир ищет свой вагон","Проводник проверяет билет","Расписание чихает на платформе"]},
+      {id:43,difficulty:2,topic:31,absurdIndex:3,statements:["Врач слушает пациента","Градусник показывает температуру","Медсестра несёт карту","Коридор лечит кашель сам"]},
+      {id:44,difficulty:2,topic:12,absurdIndex:3,statements:["Чайка кружит над берегом","Волны разбиваются о пирс","Якорь лежит на дне","Горизонт складывают в чемодан"]},
+      {id:45,difficulty:2,topic:17,absurdIndex:3,statements:["Семена сеют весной","Теплица держит тепло","Огурцы растут на плети","Урожай шепчет новости лопатам"]},
+      {id:46,difficulty:2,topic:32,absurdIndex:3,statements:["Стиральная машина крутит барабан","Мокрая рубашка сохнет на верёвке","Утюг разглаживает ткань","Пуговица заводит будильник"]},
+      {id:47,difficulty:2,topic:16,absurdIndex:3,statements:["Мох растёт на пне","Ручей бежит между камней","Дятел стучит по стволу","Тишина несёт корзину грибов"]},
+      {id:48,difficulty:2,topic:5,absurdIndex:3,statements:["Снег убирают лопатой","Витрина отражает прохожих","Фонтан работает летом","Переход закрывает глаза от ветра"]},
+      {id:49,difficulty:2,topic:26,absurdIndex:3,statements:["Гантели лежат на стойке","Тренер считает повторения","Коврик стелют на пол","Пульс завязывает шнурок"]},
+      {id:50,difficulty:2,topic:33,absurdIndex:3,statements:["Художник смешивает краски","Кисть оставляет мазки","Рамка висит на стене","Пейзаж спорит с табуретом"]},
+      {id:51,difficulty:2,topic:34,absurdIndex:3,statements:["Конверт кладут в ящик","Марка приклеена к письму","Курьер звонит в дверь","Адрес жарит блины утром"]},
+      {id:52,difficulty:2,topic:30,absurdIndex:3,statements:["Пассажиры садятся в вагон","Окно дрожит на ходу","Полка держит багаж","Свисток складывает одеяло"]},
+      {id:53,difficulty:2,topic:35,absurdIndex:3,statements:["Кран поднимает груз","Каска защищает голову","Цемент застывает в форме","Чертёж копает яму ковшом"]},
+      {id:54,difficulty:2,topic:14,absurdIndex:3,statements:["Завтрак стоит на столе","Солнце входит в окно","Люди спешат на работу","Четверг заваривает чай в чашке"]},
+      {id:55,difficulty:2,topic:1,absurdIndex:3,statements:["Лось идёт через чащу","Белка прячет орех","Волк слышит шорох","Запах надевает варежки"]},
+      {id:56,difficulty:2,topic:25,absurdIndex:3,statements:["Справочник ищут на полке","Тишину соблюдают в зале","Стул стоит у стола","Сноска открывает зонт у двери"]},
+      {id:57,difficulty:2,topic:13,absurdIndex:3,statements:["Листья падают на дорожку","Собака тянет поводок","Колёса коляски едут по плитке","Тень катается на качелях одна"]},
+      {id:58,difficulty:2,topic:10,absurdIndex:3,statements:["Соль растворяется в супе","Тесто поднимается в миске","Пламя греет чайник","Хруст складывают в банку ложкой"]},
+      {id:59,difficulty:2,topic:5,absurdIndex:3,statements:["Трамвай звенит на повороте","Окна светятся вечером","Двор открыт для жильцов","Пешеходный шум застёгивает пальто"]},
+      {id:60,difficulty:2,topic:36,absurdIndex:3,statements:["Молоток забивает гвоздь","Отвёртка крутит винт","Полка держится на стене","Трещина читает инструкцию ночью"]},
+      {id:61,difficulty:2,topic:18,absurdIndex:3,statements:["Пар идёт изо рта на морозе","Сапоги оставляют следы в снегу","Варежки сушат у батареи","Холод чинит санки отвёрткой"]},
+      {id:62,difficulty:2,topic:37,absurdIndex:3,statements:["Скрипка звучит тихо","Барабан держит ритм","Пианист нажимает клавиши","Мелодия ставит чайник на плиту"]},
+      {id:63,difficulty:2,topic:3,absurdIndex:3,statements:["Капли стучат по крыше","Лужа отражает фонарь","Зонт защищает от дождя","Отражение сушит носки на верёвке"]},
+      {id:64,difficulty:2,topic:38,absurdIndex:3,statements:["Продавец взвешивает яблоки","Покупатель выбирает овощи","Ящик стоит под прилавком","Цена несёт пакеты к автобусу"]},
+
+      // Hard — sets 65..84
+      {id:65,difficulty:3,topic:39,absurdIndex:3,statements:["Будильник звонит раньше встречи","Очередь движется медленно","Календарь висит на стене","Завтра пришло раньше вчера"]},
+      {id:66,difficulty:3,topic:8,absurdIndex:3,statements:["Иней покрывает стекло утром","Жара держится весь день","Туча закрыла солнце","Сухой дождь промочил куртку"]},
+      {id:67,difficulty:3,topic:40,absurdIndex:3,statements:["Лампа освещает угол комнаты","Солнце даёт тень от дерева","Свеча горит в темноте","Тень светит ярче фонаря"]},
+      {id:68,difficulty:3,topic:4,absurdIndex:3,statements:["Лёд охлаждает напиток","Сахар делают слаще чай","Соль добавляют в суп","Кипяток замёрз от жара"]},
+      {id:69,difficulty:3,topic:5,absurdIndex:3,statements:["Последний автобус уезжает вечером","Лифт иногда ждут долго","Письмо приходит позже отправки","Остановка приехала к автобусу"]},
+      {id:70,difficulty:3,topic:6,absurdIndex:3,statements:["Учебник лежит в рюкзаке","Домашнее задание записывают в дневник","Мел крошится у доски","Ответ написал ученика в тетради"]},
+      {id:71,difficulty:3,topic:3,absurdIndex:3,statements:["Лёд трескается весной","Пыль поднимается от ветра","Роса бывает на траве утром","Ручей течёт вверх к облакам"]},
+      {id:72,difficulty:3,topic:1,absurdIndex:3,statements:["Собака узнаёт хозяина","Голуби ищут крошки на площади","Кошка слышит шорох ночью","Рыба дышит школьным дневником"]},
+      {id:73,difficulty:3,topic:23,absurdIndex:3,statements:["Машина тормозит перед переходом","Пешеход смотрит по сторонам","Колесо вращается на ходу","Дорога уехала из-под машины"]},
+      {id:74,difficulty:3,topic:41,absurdIndex:3,statements:["Новость быстро разошлась по городу","Записка лежит под книгой","Газету купили утром","Молчание громко напечатали курсивом"]},
+      {id:75,difficulty:3,topic:7,absurdIndex:3,statements:["Пальто носят зимой","Пуговица держит ткань","Шнурки завязывают на ботинках","Карман надел человека утром"]},
+      {id:76,difficulty:3,topic:2,absurdIndex:3,statements:["Дверь закрывают ключом","Стекло отражает свет","Батарея греет комнату","Потолок стоит на люстре"]},
+      {id:77,difficulty:3,topic:30,absurdIndex:3,statements:["Поезд приходит по расписанию","Чемодан иногда бывает тяжёлым","Пассажир ищет свой выход","Маршрут забыл, куда едет"]},
+      {id:78,difficulty:3,topic:39,absurdIndex:3,statements:["Утро приходит после ночи","Минуты идут на часах","Выходной бывает после работы","Полдень наступил в три ночи"]},
+      {id:79,difficulty:3,topic:15,absurdIndex:3,statements:["Чек выдают после оплаты","Корзину берут у входа","Фрукты лежат на витрине","Сдача купила себе покупателя"]},
+      {id:80,difficulty:3,topic:42,absurdIndex:3,statements:["Семечко даёт росток","Дерево тянется к свету","Лист опадает осенью","Корни цветут выше облаков"]},
+      {id:81,difficulty:3,topic:10,absurdIndex:3,statements:["Пар поднимается вверх","Тарелка может разбиться","Вилка лежит рядом с ножом","Пустая чашка пролила чай"]},
+      {id:82,difficulty:3,topic:25,absurdIndex:3,statements:["Страницы шелестят при листании","Читатель сдаёт книгу вовремя","Полка держит энциклопедии","Обложка прочитала читателя первой"]},
+      {id:83,difficulty:3,topic:8,absurdIndex:3,statements:["Листья желтеют осенью","Сугробы бывают зимой","Гром слышен после молнии","Весна замёрзла от кипящего солнца"]},
+      {id:84,difficulty:3,topic:9,absurdIndex:3,statements:["Пассажиры держатся за поручни","Двери закрываются перед отправлением","Маршрут указан на табло","Поручень уступил место пассажиру"]},
+
+      // Expert — sets 85..96
+      {id:85,difficulty:4,topic:43,absurdIndex:3,statements:["Окно разбилось после удара мячом","Пол намок после пролитой воды","Очки запотели после входа в тепло","Сначала появился след, потом прошёл человек"]},
+      {id:86,difficulty:4,topic:44,absurdIndex:3,statements:["Лестница ведёт на второй этаж","Ковер лежит перед диваном","Зеркало висит над раковиной","Чем глубже яма, тем ближе потолок"]},
+      {id:87,difficulty:4,topic:45,absurdIndex:3,statements:["Стекло может быть прозрачным","Железо тяжелее перьев","Лёд бывает скользким","Квадратный круг катится по полу"]},
+      {id:88,difficulty:4,topic:39,absurdIndex:3,statements:["Вчера уже прошло","Завтра ещё не началось","Минутная стрелка движется быстрее часовой","Опоздание случилось до начала времени"]},
+      {id:89,difficulty:4,topic:46,absurdIndex:3,statements:["Ключ подходит к своему замку","Письмо можно сложить пополам","Книга может лежать вверх обложкой","Закрытая дверь была открыта без открытия"]},
+      {id:90,difficulty:4,topic:47,absurdIndex:3,statements:["Громкий хлопок слышен в комнате","Шёпот звучит тише крика","Эхо повторяет звук позже","Тишина оглушила всех барабаном"]},
+      {id:91,difficulty:4,topic:48,absurdIndex:3,statements:["Пар поднимается над чайником","Лёд тает на солнце","Капли остаются на стекле","Мокрый огонь замочил полотенце"]},
+      {id:92,difficulty:4,topic:49,absurdIndex:3,statements:["Колесо вращается вокруг оси","Лодка качается на воде","Маятник движется из стороны в сторону","Стоящая гонка обогнала поезд"]},
+      {id:93,difficulty:4,topic:50,absurdIndex:3,statements:["Газету читают сверху вниз","Название книги печатают на обложке","Буквы складываются в слова","Пустая строка рассказала длинную речь"]},
+      {id:94,difficulty:4,topic:51,absurdIndex:3,statements:["Летом дни обычно длиннее","Весной тает снег","Осенью часто идут дожди","Зима выросла на яблоне как фрукт"]},
+      {id:95,difficulty:4,topic:52,absurdIndex:3,statements:["Третий идёт после второго","Пять больше двух","Последняя страница бывает в конце","Первое место финишировало после последнего раньше старта"]},
+      {id:96,difficulty:4,topic:53,absurdIndex:3,statements:["Мокрый зонт сушат открытым","Грязные ботинки оставляют следы","Запотевшее стекло протирают тряпкой","Невидимая пыль закрыла яркое солнце в шкафу"]}
+    ];
+
+    // =========================================================================
+    // Build tier index
+    // =========================================================================
+    var SETS_BY_TIER = {
+      1: CHALLENGE_SETS.filter(function(s) { return s.difficulty === 1; }),
+      2: CHALLENGE_SETS.filter(function(s) { return s.difficulty === 2; }),
+      3: CHALLENGE_SETS.filter(function(s) { return s.difficulty === 3; }),
+      4: CHALLENGE_SETS.filter(function(s) { return s.difficulty === 4; })
+    };
+
+    // Runtime validation
+    (function() {
+      var expected = { 1: 32, 2: 32, 3: 20, 4: 12 };
+      for (var tier in expected) {
+        if (SETS_BY_TIER[tier].length !== expected[tier]) {
+          console.error('Tier ' + tier + ' expected ' + expected[tier] + ' sets but got ' + SETS_BY_TIER[tier].length);
+        }
+      }
+      if (CHALLENGE_SETS.length !== 96) {
+        console.error('Expected 96 total sets but got ' + CHALLENGE_SETS.length);
+      }
+    })();
+
+    // =========================================================================
+    // Font stacks for visual variation
+    // =========================================================================
+    var FONT_STACKS = [
+      '"Arial", sans-serif',
+      '"Trebuchet MS", sans-serif',
+      '"Verdana", sans-serif',
+      '"Tahoma", sans-serif'
+    ];
+
+    // =========================================================================
+    // Card background palettes
+    // =========================================================================
+    var CARD_PALETTES = [
+      { bg: '#FAFAFA', border: '#D8D8D8', shadow: 'rgba(0,0,0,0.08)' },
+      { bg: '#FDF8F0', border: '#E4D5C0', shadow: 'rgba(120,80,20,0.07)' },
+      { bg: '#F0F5FA', border: '#C5D5E8', shadow: 'rgba(20,60,120,0.07)' },
+      { bg: '#F5F0F5', border: '#D8C8D8', shadow: 'rgba(80,20,80,0.07)' }
+    ];
+
+    // =========================================================================
+    // Tier display names
+    // =========================================================================
+    var TIER_NAMES = { 1: 'Easy', 2: 'Medium', 3: 'Hard', 4: 'Expert' };
+    var TIER_COLORS = { 1: '#437A22', 2: '#01696F', 3: '#964219', 4: '#A12C7B' };
+
+    // =========================================================================
+    // PRNG: xorshift32 (deterministic, seeded)
+    // =========================================================================
+    function xorshift32(seed) {
+      var s = seed | 0;
+      if (s === 0) s = 1;
+      return function() {
+        s ^= s << 13;
+        s ^= s >> 17;
+        s ^= s << 5;
+        return (s >>> 0) / 4294967296;
+      };
+    }
+
+    // =========================================================================
+    // Cryptographic random uint32
+    // =========================================================================
+    function randomUint32() {
+      var buf = new Uint32Array(1);
+      if (window.crypto && crypto.getRandomValues) {
+        crypto.getRandomValues(buf);
+        return buf[0] >>> 0;
+      }
+      return Math.floor(Math.random() * 0x100000000) >>> 0;
+    }
+
+    // =========================================================================
+    // Normalize complexity value to 1..100
+    // =========================================================================
+    function normalizeComplexity(v) {
+      v = Math.round(Number(v) || 1);
+      if (v < 1) return 1;
+      if (v > 100) return 100;
+      return v;
+    }
+
+    // =========================================================================
+    // Weighted tier selection matching production logic
+    // =========================================================================
+    function selectTier(complexity, rng) {
+      var roll = Math.floor(rng() * 100);
+      if (complexity <= 10) return 1;
+      if (complexity <= 20) return roll < 85 ? 1 : 2;
+      if (complexity <= 25) return roll < 70 ? 1 : 2;
+      if (complexity <= 40) return 2;
+      if (complexity <= 55) return roll < 80 ? 2 : 3;
+      if (complexity <= 70) return 3;
+      if (complexity <= 80) return roll < 70 ? 3 : 4;
+      if (complexity <= 90) return 4;
+      return roll < 85 ? 4 : 3;
+    }
+
+    // =========================================================================
+    // Fisher-Yates shuffle
+    // =========================================================================
+    function shuffle4(arr, rng) {
+      for (var i = arr.length - 1; i > 0; i--) {
+        var j = Math.floor(rng() * (i + 1));
+        var tmp = arr[i];
+        arr[i] = arr[j];
+        arr[j] = tmp;
+      }
+    }
+
+    // =========================================================================
+    // Confidence calculation (production logic)
+    // =========================================================================
+    function computeConfidence(correct, elapsedMs) {
+      if (!correct) return 0;
+      if (elapsedMs < 250) return 55;
+      if (elapsedMs < 450) return 65;
+      if (elapsedMs < 800) return 74;
+      if (elapsedMs <= 5000) return 80;
+      if (elapsedMs <= 12000) return 76;
+      if (elapsedMs <= 20000) return 70;
+      return 60;
+    }
+
+    // =========================================================================
+    // Canvas helpers
+    // =========================================================================
+
+    // Wrap text into lines fitting maxWidth (canvas-based measurement)
+    function wrapText(ctx, text, maxWidth, maxLines) {
+      var words = text.split(' ');
+      var lines = [];
+      var current = '';
+      for (var wi = 0; wi < words.length; wi++) {
+        var w = words[wi];
+        var test = current ? current + ' ' + w : w;
+        if (ctx.measureText(test).width > maxWidth && current) {
+          lines.push(current);
+          current = w;
+          if (lines.length >= maxLines) break;
+        } else {
+          current = test;
+        }
+      }
+      if (current && lines.length < maxLines) lines.push(current);
+      return lines;
+    }
+
+    // Draw a rounded rectangle path
+    function drawRoundedRect(ctx, x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    }
+
+    // Draw subtle noise overlay for anti-bot visual appearance
+    function drawNoiseOverlay(ctx, x, y, w, h, rng, intensity) {
+      var dotCount = Math.floor(8 + intensity * 12);
+      for (var i = 0; i < dotCount; i++) {
+        var dx = x + rng() * w;
+        var dy = y + rng() * h;
+        var alpha = 0.02 + rng() * 0.04;
+        var gray = Math.floor(100 + rng() * 100);
+        ctx.fillStyle = 'rgba(' + gray + ',' + gray + ',' + gray + ',' + alpha + ')';
+        ctx.fillRect(dx, dy, 1.5, 1.5);
+      }
+      var lineCount = rng() > 0.5 ? 2 : 1;
+      for (var li = 0; li < lineCount; li++) {
+        ctx.strokeStyle = 'rgba(160,160,160,' + (0.03 + rng() * 0.04) + ')';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(x + rng() * w, y + rng() * h);
+        ctx.lineTo(x + rng() * w, y + rng() * h);
+        ctx.stroke();
+      }
+    }
+
+    // =========================================================================
+    // Main application class
+    // =========================================================================
+    function ImpossibleRealityDemoApp() {
+      this.canvas = null;
+      this.ctx = null;
+      this.rangeEl = null;
+      this.refreshBtn = null;
+      this.newTaskBtn = null;
+      this.complexityValueEl = null;
+      this.tierBadgeEl = null;
+      this.confidenceLabelEl = null;
+
+      this.state = {
+        payload: null,
+        cards: [],
+        hoveredIndex: -1,
+        selectedIndex: -1,
+        submitted: false,
+        resultPhase: 'idle',
+        correctIndex: -1,
+        wrongIndex: -1,
+        confidence: null,
+        renderStartTs: 0,
+        canvasWidth: 0,
+        canvasHeight: 0,
+        dpr: 1
+      };
+
+      this.pendingRevealTimer = null;
+    }
+
+    // =========================================================================
+    // Initialize and run the demo
+    // =========================================================================
+    ImpossibleRealityDemoApp.prototype.run = function() {
+      // Cache DOM references
+      this.canvas = document.getElementById('captchaCanvas');
+      this.ctx = this.canvas.getContext('2d');
+      this.rangeEl = document.getElementById('complexityRange');
+      this.refreshBtn = document.getElementById('refreshBtn');
+      this.newTaskBtn = document.getElementById('newTaskBtn');
+      this.complexityValueEl = document.getElementById('complexityValue');
+      this.tierBadgeEl = document.getElementById('tierBadge');
+      this.confidenceLabelEl = document.getElementById('confidenceLabel');
+
+      // Setup canvas with DPR support
+      this.state.dpr = Math.min(window.devicePixelRatio || 1, 3);
+      this.resizeCanvas();
+
+      // Bind all events
+      this.bindEvents();
+
+      // Update complexity label from initial slider value
+      this.complexityValueEl.textContent = this.rangeEl.value;
+
+      // Generate the first challenge and render
+      this.generateChallenge();
+    };
+
+    // =========================================================================
+    // Bind DOM and canvas events
+    // =========================================================================
+    ImpossibleRealityDemoApp.prototype.bindEvents = function() {
+      var self = this;
+
+      // Slider input updates the label live
+      this.rangeEl.addEventListener('input', function() {
+        self.complexityValueEl.textContent = self.rangeEl.value;
+      });
+
+      // Refresh button generates new challenge with current slider value
+      this.refreshBtn.addEventListener('click', function() {
+        self.generateChallenge();
+      });
+
+      // New task button (visible only after answering)
+      this.newTaskBtn.addEventListener('click', function() {
+        self.generateChallenge();
+      });
+
+      // Canvas pointer events for hover and click
+      this.canvas.addEventListener('pointermove', function(ev) {
+        self.handlePointerMove(ev);
+      });
+      this.canvas.addEventListener('pointerleave', function() {
+        self.handlePointerLeave();
+      });
+      this.canvas.addEventListener('pointerup', function(ev) {
+        self.handlePointerUp(ev);
+      });
+      this.canvas.addEventListener('pointerdown', function(ev) {
+        // Prevent text selection on canvas
+        ev.preventDefault();
+      });
+
+      // Resize handler
+      window.addEventListener('resize', function() {
+        self.state.dpr = Math.min(window.devicePixelRatio || 1, 3);
+        self.resizeCanvas();
+        if (self.state.payload) {
+          self.buildCards();
+          self.render();
+        }
+      });
+    };
+
+    // =========================================================================
+    // Resize canvas to match shell container and handle DPR
+    // =========================================================================
+    ImpossibleRealityDemoApp.prototype.resizeCanvas = function() {
+      var shell = this.canvas.parentElement;
+      var w = shell.clientWidth;
+      var h = shell.clientHeight;
+      this.state.canvasWidth = w;
+      this.state.canvasHeight = h;
+      this.canvas.width = Math.round(w * this.state.dpr);
+      this.canvas.height = Math.round(h * this.state.dpr);
+      this.canvas.style.width = w + 'px';
+      this.canvas.style.height = h + 'px';
+      this.ctx.setTransform(this.state.dpr, 0, 0, this.state.dpr, 0, 0);
+    };
+
+    // =========================================================================
+    // Generate a new challenge from built-in sets
+    // =========================================================================
+    ImpossibleRealityDemoApp.prototype.generateChallenge = function() {
+      // Clear any pending reveal timer
+      if (this.pendingRevealTimer) {
+        clearTimeout(this.pendingRevealTimer);
+        this.pendingRevealTimer = null;
+      }
+
+      var complexity = normalizeComplexity(this.rangeEl.value);
+      var tierRng = xorshift32(randomUint32());
+      var tier = selectTier(complexity, tierRng);
+      var tierSets = SETS_BY_TIER[tier];
+      var set = tierSets[Math.floor(tierRng() * tierSets.length)];
+
+      // Shuffle order of 4 cards
+      var order = [0, 1, 2, 3];
+      shuffle4(order, tierRng);
+      var absurdPosition = order.indexOf(set.absurdIndex);
+      var statements = [];
+      for (var i = 0; i < 4; i++) {
+        statements.push(set.statements[order[i]]);
+      }
+
+      // Build the payload object
+      this.state.payload = {
+        setId: set.id,
+        topic: set.topic,
+        complexity: complexity,
+        tier: tier,
+        renderSeed: randomUint32(),
+        layoutSeed: randomUint32(),
+        variantFlags: Math.floor(tierRng() * 4096),
+        absurdIndexCanonical: set.absurdIndex,
+        absurdPosition: absurdPosition,
+        order: order,
+        statements: statements,
+        createdAt: Date.now()
+      };
+
+      // Reset result state
+      this.state.selectedIndex = -1;
+      this.state.submitted = false;
+      this.state.resultPhase = 'idle';
+      this.state.correctIndex = -1;
+      this.state.wrongIndex = -1;
+      this.state.confidence = null;
+      this.state.hoveredIndex = -1;
+      this.state.renderStartTs = performance.now();
+
+      // Hide new task button
+      this.newTaskBtn.hidden = true;
+
+      // Build card layout and render
+      this.buildCards();
+      this.updateMetaUI();
+      this.render();
+    };
+
+    // =========================================================================
+    // Build card geometry from current payload and canvas size
+    // =========================================================================
+    ImpossibleRealityDemoApp.prototype.buildCards = function() {
+      var p = this.state.payload;
+      if (!p) return;
+
+      var w = this.state.canvasWidth;
+      var h = this.state.canvasHeight;
+
+      // Layout constants matching production
+      var padding = 16;
+      var titleHeight = 32;
+      var instructionHeight = 22;
+      var headerGap = 8;
+      var gap = 14;
+
+      var gridTop = padding + titleHeight + headerGap + instructionHeight + headerGap;
+      var cardW = Math.floor((w - padding * 2 - gap) / 2);
+      var cardH = Math.floor((h - gridTop - padding - gap) / 2);
+
+      // Decode variant flags
+      var fontProfile = p.variantFlags & 0x03;
+      var paletteProfile = (p.variantFlags >> 2) & 0x03;
+      var rotationIntensity = (p.variantFlags >> 8) & 0x03;
+
+      var rng = xorshift32(p.renderSeed);
+      var lrng = xorshift32(p.layoutSeed);
+
+      var cards = [];
+      for (var i = 0; i < 4; i++) {
+        var col = i % 2;
+        var row = Math.floor(i / 2);
+        var x = padding + col * (cardW + gap) + (lrng() - 0.5) * 3;
+        var y = gridTop + row * (cardH + gap) + (lrng() - 0.5) * 3;
+        var maxAngle = 0.4 + rotationIntensity * 0.5;
+        var rotation = (rng() - 0.5) * maxAngle * (Math.PI / 180) * 2;
+
+        cards.push({
+          index: i,
+          text: p.statements[i],
+          x: x,
+          y: y,
+          w: cardW,
+          h: cardH,
+          rotation: rotation,
+          textLines: [],
+          paletteIndex: (paletteProfile + i) % CARD_PALETTES.length,
+          fontIndex: (fontProfile + i) % FONT_STACKS.length
+        });
+      }
+
+      // Calculate text wrapping for each card
+      var fontSize = Math.max(14, Math.min(20, Math.floor(cardW / 12)));
+      var innerPad = 14;
+      var maxTextWidth = cardW - innerPad * 2;
+
+      for (var ci = 0; ci < cards.length; ci++) {
+        var card = cards[ci];
+        var font = '600 ' + fontSize + 'px ' + FONT_STACKS[card.fontIndex];
+        this.ctx.font = font;
+        var lines = wrapText(this.ctx, card.text, maxTextWidth, 3);
+        // If 3 lines at base size, try smaller font
+        if (lines.length >= 3) {
+          var smallerFont = '600 ' + (fontSize - 2) + 'px ' + FONT_STACKS[card.fontIndex];
+          this.ctx.font = smallerFont;
+          lines = wrapText(this.ctx, card.text, maxTextWidth, 3);
+        }
+        card.textLines = lines;
+      }
+
+      this.state.cards = cards;
+    };
+
+    // =========================================================================
+    // Hit-test: find which card index contains the given CSS coordinates
+    // =========================================================================
+    ImpossibleRealityDemoApp.prototype.hitTest = function(x, y) {
+      var cards = this.state.cards;
+      for (var i = 0; i < cards.length; i++) {
+        var c = cards[i];
+        if (x >= c.x && x <= c.x + c.w && y >= c.y && y <= c.y + c.h) {
+          return c.index;
+        }
+      }
+      return -1;
+    };
+
+    // =========================================================================
+    // Pointer move: update hover state
+    // =========================================================================
+    ImpossibleRealityDemoApp.prototype.handlePointerMove = function(ev) {
+      if (this.state.submitted || !this.state.payload) return;
+      var rect = this.canvas.getBoundingClientRect();
+      var x = ev.clientX - rect.left;
+      var y = ev.clientY - rect.top;
+      var idx = this.hitTest(x, y);
+      if (idx !== this.state.hoveredIndex) {
+        this.state.hoveredIndex = idx;
+        this.render();
+      }
+      this.canvas.style.cursor = idx >= 0 ? 'pointer' : 'default';
+    };
+
+    // =========================================================================
+    // Pointer leave: clear hover
+    // =========================================================================
+    ImpossibleRealityDemoApp.prototype.handlePointerLeave = function() {
+      if (this.state.submitted) return;
+      if (this.state.hoveredIndex !== -1) {
+        this.state.hoveredIndex = -1;
+        this.render();
+      }
+      this.canvas.style.cursor = 'default';
+    };
+
+    // =========================================================================
+    // Pointer up: handle card selection
+    // =========================================================================
+    ImpossibleRealityDemoApp.prototype.handlePointerUp = function(ev) {
+      if (this.state.submitted || !this.state.payload) return;
+      var rect = this.canvas.getBoundingClientRect();
+      var x = ev.clientX - rect.left;
+      var y = ev.clientY - rect.top;
+      var idx = this.hitTest(x, y);
+      if (idx < 0) return;
+
+      var elapsedMs = performance.now() - this.state.renderStartTs;
+      var correct = (idx === this.state.payload.absurdPosition);
+
+      this.state.selectedIndex = idx;
+      this.state.submitted = true;
+      this.state.hoveredIndex = -1;
+      this.canvas.style.cursor = 'default';
+      this.state.confidence = computeConfidence(correct, elapsedMs);
+
+      if (correct) {
+        // Correct answer
+        this.state.correctIndex = idx;
+        this.state.resultPhase = 'resolved';
+        this.newTaskBtn.hidden = false;
+        this.updateMetaUI();
+        this.render();
+        return;
+      }
+
+      // Wrong answer: show red immediately, reveal correct after 500ms
+      this.state.wrongIndex = idx;
+      this.state.resultPhase = 'wrong-pending';
+      this.updateMetaUI();
+      this.render();
+
+      var self = this;
+      this.pendingRevealTimer = setTimeout(function() {
+        self.state.correctIndex = self.state.payload.absurdPosition;
+        self.state.resultPhase = 'resolved';
+        self.newTaskBtn.hidden = false;
+        self.updateMetaUI();
+        self.render();
+      }, 500);
+    };
+
+    // =========================================================================
+    // Update meta UI elements (tier badge, confidence)
+    // =========================================================================
+    ImpossibleRealityDemoApp.prototype.updateMetaUI = function() {
+      var p = this.state.payload;
+      if (!p) return;
+
+      // Tier badge
+      var tierName = TIER_NAMES[p.tier] || 'Unknown';
+      var tierColor = TIER_COLORS[p.tier] || '#333';
+      this.tierBadgeEl.textContent = tierName + ' (Set #' + p.setId + ')';
+      this.tierBadgeEl.style.background = tierColor;
+      this.tierBadgeEl.style.color = '#fff';
+
+      // Complexity value
+      this.complexityValueEl.textContent = p.complexity;
+
+      // Confidence
+      if (this.state.confidence !== null) {
+        this.confidenceLabelEl.textContent = '\u0423\u0432\u0435\u0440\u0435\u043D\u043D\u043E\u0441\u0442\u044C: ' + this.state.confidence + '%';
+      } else {
+        this.confidenceLabelEl.textContent = '\u0423\u0432\u0435\u0440\u0435\u043D\u043D\u043E\u0441\u0442\u044C: \u2014';
+      }
+    };
+
+    // =========================================================================
+    // Main render function: full canvas repaint
+    // =========================================================================
+    ImpossibleRealityDemoApp.prototype.render = function() {
+      var ctx = this.ctx;
+      var w = this.state.canvasWidth;
+      var h = this.state.canvasHeight;
+      var p = this.state.payload;
+      var cards = this.state.cards;
+
+      if (!p || cards.length === 0) return;
+
+      var rng = xorshift32(p.renderSeed + 7919);
+
+      // Decode variant flags for visual variation
+      var enableGrain = (p.variantFlags >> 4) & 0x01;
+      var enableHatch = (p.variantFlags >> 5) & 0x01;
+      var widerSpacing = (p.variantFlags >> 7) & 0x01;
+
+      // Clear and draw main background
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = '#F5F5F5';
+      drawRoundedRect(ctx, 0, 0, w, h, 20);
+      ctx.fill();
+
+      // Draw title
+      var padding = 16;
+      ctx.fillStyle = '#222';
+      ctx.font = 'bold 18px "Arial", sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText('\u0427\u0442\u043E \u043D\u0435\u0432\u043E\u0437\u043C\u043E\u0436\u043D\u043E \u0432 \u0440\u0435\u0430\u043B\u044C\u043D\u043E\u0439 \u0436\u0438\u0437\u043D\u0438?', padding, padding);
+
+      // Draw subtitle
+      ctx.fillStyle = '#666';
+      ctx.font = '400 13px "Arial", sans-serif';
+      ctx.fillText('\u041D\u0430\u0436\u043C\u0438\u0442\u0435 \u043D\u0430 \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0443 \u0441 \u043D\u0435\u0432\u043E\u0437\u043C\u043E\u0436\u043D\u043E\u0439 \u0441\u0438\u0442\u0443\u0430\u0446\u0438\u0435\u0439', padding, padding + 34);
+
+      // Draw each card
+      for (var i = 0; i < cards.length; i++) {
+        this.drawCard(ctx, cards[i], rng, enableGrain, enableHatch, widerSpacing);
+      }
+
+      // Draw result banner if resolved
+      if (this.state.resultPhase === 'resolved') {
+        this.drawResultBanner(ctx, w, h);
+      } else if (this.state.resultPhase === 'wrong-pending') {
+        this.drawWrongBanner(ctx, w, h);
+      }
+    };
+
+    // =========================================================================
+    // Draw a single card on canvas
+    // =========================================================================
+    ImpossibleRealityDemoApp.prototype.drawCard = function(ctx, card, rng, enableGrain, enableHatch, widerSpacing) {
+      var pal = CARD_PALETTES[card.paletteIndex];
+      var rad = 14;
+      var hovered = (this.state.hoveredIndex === card.index && !this.state.submitted);
+      var isCorrect = (this.state.correctIndex === card.index);
+      var isWrong = (this.state.wrongIndex === card.index);
+
+      ctx.save();
+
+      // Translate to card center, apply rotation, then draw from top-left
+      var cx = card.x + card.w / 2;
+      var cy = card.y + card.h / 2;
+      ctx.translate(cx, cy);
+      ctx.rotate(card.rotation);
+      ctx.translate(-card.w / 2, -card.h / 2);
+
+      // Shadow
+      ctx.shadowColor = pal.shadow;
+      ctx.shadowBlur = hovered ? 12 : 6;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = hovered ? 3 : 2;
+
+      // Card background
+      ctx.fillStyle = pal.bg;
+      drawRoundedRect(ctx, 0, 0, card.w, card.h, rad);
+      ctx.fill();
+
+      // Reset shadow
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+
+      // Card border
+      ctx.strokeStyle = hovered ? '#888' : pal.border;
+      ctx.lineWidth = hovered ? 2 : 1;
+      drawRoundedRect(ctx, 0, 0, card.w, card.h, rad);
+      ctx.stroke();
+
+      // Noise overlay (anti-bot visual texture)
+      if (enableGrain) {
+        drawNoiseOverlay(ctx, 2, 2, card.w - 4, card.h - 4, rng, 0.5);
+      }
+
+      // Hatch lines
+      if (enableHatch) {
+        ctx.strokeStyle = 'rgba(0,0,0,0.015)';
+        ctx.lineWidth = 0.5;
+        for (var hi = 0; hi < 3; hi++) {
+          ctx.beginPath();
+          ctx.moveTo(rng() * card.w, 0);
+          ctx.lineTo(rng() * card.w, card.h);
+          ctx.stroke();
+        }
+      }
+
+      // Draw card text (canvas rendered, no DOM)
+      var fontSize = Math.max(14, Math.min(20, Math.floor(card.w / 12)));
+      // Check if smaller font was used
+      var actualFontSize = fontSize;
+      if (card.textLines.length >= 3) {
+        actualFontSize = fontSize - 2;
+      }
+      var lineHeight = actualFontSize * (1.35 + widerSpacing * 0.1);
+      ctx.font = '600 ' + actualFontSize + 'px ' + FONT_STACKS[card.fontIndex];
+      var textBlockHeight = card.textLines.length * lineHeight;
+      var startY = (card.h - textBlockHeight) / 2 + actualFontSize * 0.85;
+
+      ctx.fillStyle = '#2A2A2A';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
+      for (var li = 0; li < card.textLines.length; li++) {
+        ctx.fillText(card.textLines[li], 14, startY + li * lineHeight);
+      }
+
+      // Hover highlight (blue outline)
+      if (hovered) {
+        ctx.strokeStyle = 'rgba(66,133,244,0.5)';
+        ctx.lineWidth = 2.5;
+        drawRoundedRect(ctx, -1, -1, card.w + 2, card.h + 2, rad + 1);
+        ctx.stroke();
+      }
+
+      // Correct card highlight (green)
+      if (isCorrect) {
+        // Green glow
+        ctx.strokeStyle = 'rgba(46,155,71,0.22)';
+        ctx.lineWidth = 6;
+        drawRoundedRect(ctx, -3, -3, card.w + 6, card.h + 6, rad + 3);
+        ctx.stroke();
+
+        // Green border
+        ctx.strokeStyle = '#2E9B47';
+        ctx.lineWidth = 3;
+        drawRoundedRect(ctx, 0, 0, card.w, card.h, rad);
+        ctx.stroke();
+
+        // Success badge
+        this.drawSuccessBadge(ctx, card);
+      }
+
+      // Wrong card highlight (red)
+      if (isWrong) {
+        // Red overlay
+        ctx.fillStyle = 'rgba(204,68,68,0.06)';
+        drawRoundedRect(ctx, 0, 0, card.w, card.h, rad);
+        ctx.fill();
+
+        // Red border
+        ctx.strokeStyle = '#CC4444';
+        ctx.lineWidth = 3;
+        drawRoundedRect(ctx, 0, 0, card.w, card.h, rad);
+        ctx.stroke();
+
+        // Error badge
+        this.drawErrorBadge(ctx, card);
+      }
+
+      ctx.restore();
+    };
+
+    // =========================================================================
+    // Draw success badge on correct card
+    // =========================================================================
+    ImpossibleRealityDemoApp.prototype.drawSuccessBadge = function(ctx, card) {
+      var text = '\u2713 \u041F\u0440\u0430\u0432\u0438\u043B\u044C\u043D\u043E!';
+      ctx.save();
+      ctx.font = '700 13px Arial, sans-serif';
+      var textWidth = ctx.measureText(text).width + 20;
+      var bx = card.w / 2 - textWidth / 2;
+      var by = card.h - 34;
+      drawRoundedRect(ctx, bx, by, textWidth, 24, 12);
+      ctx.fillStyle = 'rgba(46,155,71,0.92)';
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, card.w / 2, by + 12);
+      ctx.restore();
+    };
+
+    // =========================================================================
+    // Draw error badge on wrong card
+    // =========================================================================
+    ImpossibleRealityDemoApp.prototype.drawErrorBadge = function(ctx, card) {
+      var text = '\u2715 \u041D\u0435\u0432\u0435\u0440\u043D\u043E';
+      ctx.save();
+      ctx.font = '700 13px Arial, sans-serif';
+      var textWidth = ctx.measureText(text).width + 20;
+      var bx = card.w / 2 - textWidth / 2;
+      var by = card.h - 34;
+      drawRoundedRect(ctx, bx, by, textWidth, 24, 12);
+      ctx.fillStyle = 'rgba(204,68,68,0.92)';
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, card.w / 2, by + 12);
+      ctx.restore();
+    };
+
+    // =========================================================================
+    // Draw result banner at bottom of canvas (correct scenario)
+    // =========================================================================
+    ImpossibleRealityDemoApp.prototype.drawResultBanner = function(ctx, w, h) {
+      var isCorrect = (this.state.wrongIndex === -1);
+      var bannerText, bannerBg;
+
+      if (isCorrect) {
+        bannerText = '\u2713 \u041F\u0440\u0430\u0432\u0438\u043B\u044C\u043D\u043E! \u0423\u0432\u0435\u0440\u0435\u043D\u043D\u043E\u0441\u0442\u044C: ' + this.state.confidence + '%';
+        bannerBg = 'rgba(46,155,71,0.88)';
+      } else {
+        bannerText = '\u041F\u0440\u0430\u0432\u0438\u043B\u044C\u043D\u044B\u0439 \u043E\u0442\u0432\u0435\u0442 \u043F\u043E\u0434\u0441\u0432\u0435\u0447\u0435\u043D \u0437\u0435\u043B\u0451\u043D\u044B\u043C';
+        bannerBg = 'rgba(80,80,80,0.88)';
+      }
+
+      ctx.save();
+      ctx.font = '600 14px Arial, sans-serif';
+      var tw = ctx.measureText(bannerText).width + 32;
+      var bw = Math.min(tw, w - 32);
+      var bh = 36;
+      var bx = (w - bw) / 2;
+      var by = h - 52;
+
+      // Banner shadow
+      ctx.shadowColor = 'rgba(0,0,0,0.15)';
+      ctx.shadowBlur = 12;
+      ctx.shadowOffsetY = 2;
+
+      drawRoundedRect(ctx, bx, by, bw, bh, 18);
+      ctx.fillStyle = bannerBg;
+      ctx.fill();
+
+      // Reset shadow
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(bannerText, w / 2, by + bh / 2);
+      ctx.restore();
+    };
+
+    // =========================================================================
+    // Draw wrong-pending banner
+    // =========================================================================
+    ImpossibleRealityDemoApp.prototype.drawWrongBanner = function(ctx, w, h) {
+      var bannerText = '\u2715 \u041D\u0435\u0432\u0435\u0440\u043D\u043E\u2026';
+      ctx.save();
+      ctx.font = '600 14px Arial, sans-serif';
+      var tw = ctx.measureText(bannerText).width + 32;
+      var bw = Math.min(tw, w - 32);
+      var bh = 36;
+      var bx = (w - bw) / 2;
+      var by = h - 52;
+
+      ctx.shadowColor = 'rgba(0,0,0,0.15)';
+      ctx.shadowBlur = 12;
+      ctx.shadowOffsetY = 2;
+
+      drawRoundedRect(ctx, bx, by, bw, bh, 18);
+      ctx.fillStyle = 'rgba(204,68,68,0.88)';
+      ctx.fill();
+
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(bannerText, w / 2, by + bh / 2);
+      ctx.restore();
+    };
+
+    // =========================================================================
+    // Start the application when DOM is ready
+    // =========================================================================
+    var app = new ImpossibleRealityDemoApp();
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function() { app.run(); });
+    } else {
+      app.run();
+    }
+  </script>
+
+<!-- Iframe-to-parent mouse/click event forwarder for behavioral analysis -->
+<script>
+(function () {
+  // Only activate when running inside an iframe
+  if (window.parent === window) return;
+
+  var lastMoveAt = 0;
+  var MOVE_INTERVAL_MS = 40; // Throttle to ~25 fps
+
+  function postToParent(type, e) {
+    window.parent.postMessage({
+      type: type,
+      clientX: e.clientX,
+      clientY: e.clientY,
+      timestamp: performance.now()
+    }, '*');
+  }
+
+  // Forward throttled mousemove events
+  document.addEventListener('mousemove', function (e) {
+    var now = performance.now();
+    if (now - lastMoveAt < MOVE_INTERVAL_MS) return;
+    lastMoveAt = now;
+    postToParent('captcha:mouseMove', e);
+  }, { passive: true });
+
+  // Forward click events (capture phase for robustness)
+  document.addEventListener('click', function (e) {
+    postToParent('captcha:click', e);
+  }, true);
+})();
+</script>
+</body>
+</html>

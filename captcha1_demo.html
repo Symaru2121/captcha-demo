@@ -1,0 +1,1242 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Captcha</title>
+    <style>
+        /* Base page styles matching production */
+        html, body {
+            padding: 0;
+            margin: 0;
+            background: #f5f5f5;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* Root container */
+        #app {
+            padding: 12px 16px 12px;
+            border-radius: 20px 20px 0 0;
+            background: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        /* Title */
+        #title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1a1a1a;
+            margin-bottom: 4px;
+            text-align: center;
+        }
+
+        /* Subtitle */
+        #subtitle {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 12px;
+            text-align: center;
+        }
+
+        /* Canvas wrapper */
+        #canvasWrap {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Canvas */
+        #captchaCanvas {
+            display: block;
+            width: 320px;
+            height: 240px;
+            cursor: pointer;
+            border-radius: 12px;
+            touch-action: manipulation;
+            background: #fff;
+        }
+
+        /* Status text */
+        #status {
+            font-size: 14px;
+            color: #888;
+            margin-top: 8px;
+            min-height: 20px;
+            text-align: center;
+        }
+
+        /* Confidence display */
+        #resultMeta {
+            min-height: 18px;
+            margin-top: 2px;
+            text-align: center;
+        }
+
+        #confidence {
+            font-size: 12px;
+            color: #666;
+        }
+
+        /* Actions container */
+        #actions {
+            margin-top: 10px;
+            min-height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Buttons */
+        #newTaskButton,
+        #refreshButton {
+            border: 0;
+            border-radius: 10px;
+            background: #1a1a1a;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 10px 14px;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        #newTaskButton:hover,
+        #refreshButton:hover {
+            background: #2a2a2a;
+        }
+
+        #newTaskButton:active,
+        #refreshButton:active {
+            transform: translateY(1px);
+        }
+
+        #newTaskButton:disabled,
+        #refreshButton:disabled {
+            opacity: 0.45;
+            cursor: default;
+            transform: none;
+        }
+
+        /* Controls block */
+        #controls {
+            width: 320px;
+            margin-top: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        #complexityRow {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        #complexityLabel {
+            font-size: 12px;
+            color: #666;
+        }
+
+        #complexityValue {
+            color: #1a1a1a;
+            font-weight: 600;
+        }
+
+        #complexitySlider {
+            width: 100%;
+            margin: 0;
+        }
+
+        /* Footer */
+        #footer {
+            font-size: 11px;
+            color: #bbb;
+            margin-top: 6px;
+            text-align: center;
+        }
+
+        /* Status color classes */
+        .status-success {
+            color: #1f8f47 !important;
+        }
+
+        .status-error {
+            color: #c53b3b !important;
+        }
+
+        .status-neutral {
+            color: #888 !important;
+        }
+    </style>
+</head>
+<body>
+<div id="app">
+    <div id="title">Найдите лишнее</div>
+    <div id="subtitle">Нажмите на символ, который не подходит к остальным</div>
+
+    <div id="canvasWrap">
+        <canvas id="captchaCanvas" width="320" height="240" aria-label="Капча Найдите лишнее"></canvas>
+    </div>
+
+    <div id="status" aria-live="polite"></div>
+
+    <div id="resultMeta">
+        <span id="confidence"></span>
+    </div>
+
+    <div id="actions">
+        <button id="newTaskButton" type="button" hidden>Новое задание</button>
+    </div>
+
+    <div id="controls">
+        <div id="complexityRow">
+            <label for="complexitySlider" id="complexityLabel">Сложность: <span id="complexityValue">50</span></label>
+            <input id="complexitySlider" type="range" min="1" max="100" step="1" value="50">
+        </div>
+        <button id="refreshButton" type="button">Обновить</button>
+    </div>
+
+    <div id="footer">Задание займёт пару секунд</div>
+</div>
+
+<script>
+// ============================================================
+// Full glyph database (24 categories, all emoji from production)
+// ============================================================
+var ITEM_GLYPHS = {
+    // Category 1: Fruits
+    1: '\u{1F34E}', 2: '\u{1F350}', 3: '\u{1F34A}', 4: '\u{1F34B}', 5: '\u{1F34C}',
+    6: '\u{1F349}', 7: '\u{1F347}', 8: '\u{1F353}', 9: '\u{1F352}', 10: '\u{1F34D}',
+    11: '\u{1F351}', 12: '\u{1F96D}',
+
+    // Category 2: Vegetables
+    20: '\u{1F955}', 21: '\u{1F33D}', 22: '\u{1F345}', 23: '\u{1F346}', 24: '\u{1F954}',
+    25: '\u{1F9C5}', 26: '\u{1F9C4}', 27: '\u{1F952}', 28: '\u{1F96C}', 29: '\u{1FAD1}',
+    30: '\u{1F336}\uFE0F', 31: '\u{1F966}',
+
+    // Category 3: Animals
+    40: '\u{1F436}', 41: '\u{1F431}', 42: '\u{1F42D}', 43: '\u{1F439}', 44: '\u{1F430}',
+    45: '\u{1F98A}', 46: '\u{1F43B}', 47: '\u{1F43C}', 48: '\u{1F42F}', 49: '\u{1F981}',
+    50: '\u{1F438}', 51: '\u{1F435}',
+
+    // Category 4: Birds
+    60: '\u{1F426}', 61: '\u{1F427}', 62: '\u{1F989}', 63: '\u{1F986}', 64: '\u{1F985}',
+    65: '\u{1F99C}', 66: '\u{1F9A2}', 67: '\u{1F9A9}', 68: '\u{1F413}', 69: '\u{1F414}',
+    70: '\u{1F424}', 71: '\u{1F423}',
+
+    // Category 5: Sea creatures
+    80: '\u{1F41F}', 81: '\u{1F420}', 82: '\u{1F421}', 83: '\u{1F988}', 84: '\u{1F419}',
+    85: '\u{1F980}', 86: '\u{1F99E}', 87: '\u{1F990}', 88: '\u{1F991}', 89: '\u{1F42C}',
+    90: '\u{1F433}', 91: '\u{1F40B}',
+
+    // Category 6: Transport
+    100: '\u{1F697}', 101: '\u{1F695}', 102: '\u{1F699}', 103: '\u{1F68C}', 104: '\u{1F693}',
+    105: '\u{1F691}', 106: '\u{1F692}', 107: '\u{1F69A}', 108: '\u{1F69C}', 109: '\u{1F3CD}\uFE0F',
+    110: '\u{1F6B2}', 111: '\u2708\uFE0F',
+
+    // Category 7: Tools
+    120: '\u{1F528}', 121: '\u{1FA93}', 122: '\u26CF\uFE0F', 123: '\u{1FA9A}', 124: '\u{1F527}',
+    125: '\u{1FA9B}', 126: '\u{1F529}', 127: '\u2699\uFE0F', 128: '\u{1F5DC}\uFE0F', 129: '\u{1F517}',
+    130: '\u{1F9F0}', 131: '\u{1FA9C}',
+
+    // Category 8: Musical instruments
+    140: '\u{1F3B8}', 141: '\u{1F3B9}', 142: '\u{1F941}', 143: '\u{1F3BA}', 144: '\u{1F3B7}',
+    145: '\u{1FA97}', 146: '\u{1FA95}', 147: '\u{1F3BB}', 148: '\u{1FA98}', 149: '\u{1FA88}',
+    150: '\u{1F3BC}', 151: '\u{1F3B5}',
+
+    // Category 9: Clothing
+    160: '\u{1F455}', 161: '\u{1F456}', 162: '\u{1F9E5}', 163: '\u{1F9E3}', 164: '\u{1F9E4}',
+    165: '\u{1F9E2}', 166: '\u{1F452}', 167: '\u{1F457}', 168: '\u{1F454}', 169: '\u{1F9E6}',
+    170: '\u{1F45F}', 171: '\u{1F97E}',
+
+    // Category 10: Weather and sky
+    180: '\u2600\uFE0F', 181: '\u{1F324}\uFE0F', 182: '\u26C5', 183: '\u{1F325}\uFE0F', 184: '\u2601\uFE0F',
+    185: '\u{1F326}\uFE0F', 186: '\u{1F327}\uFE0F', 187: '\u26C8\uFE0F', 188: '\u{1F329}\uFE0F', 189: '\u2744\uFE0F',
+    190: '\u{1F32A}\uFE0F', 191: '\u{1F308}',
+
+    // Category 11: Geometric shapes
+    200: '\u25CF', 201: '\u25A0', 202: '\u25B2', 203: '\u25C6', 204: '\u2605',
+    205: '\u2726', 206: '\u2727', 207: '\u2B1F', 208: '\u2B22', 209: '\u2B23',
+    210: '\u25A3', 211: '\u25AA',
+
+    // Category 12: Card suits and game symbols
+    220: '\u2660', 221: '\u2663', 222: '\u2665', 223: '\u2666', 224: '\u{1F0A1}',
+    225: '\u{1F0B1}', 226: '\u{1F0C1}', 227: '\u{1F0D1}', 228: '\u{1F3B4}', 229: '\u{1F0CF}',
+    230: '\u2664', 231: '\u2667',
+
+    // Category 13: Stationery
+    240: '\u270F\uFE0F', 241: '\u{1F58A}\uFE0F', 242: '\u{1F58B}\uFE0F', 243: '\u{1F58C}\uFE0F', 244: '\u{1F4CF}',
+    245: '\u{1F4D0}', 246: '\u{1F4CE}', 247: '\u{1F587}\uFE0F', 248: '\u{1F4CC}', 249: '\u{1F4CD}',
+    250: '\u{1F5C2}\uFE0F', 251: '\u{1F4DA}',
+
+    // Category 14: Electronics
+    260: '\u{1F4F1}', 261: '\u{1F4BB}', 262: '\u2328\uFE0F', 263: '\u{1F5A5}\uFE0F', 264: '\u{1F5A8}\uFE0F',
+    265: '\u{1F5B1}\uFE0F', 266: '\u{1F3A7}', 267: '\u{1F4F7}', 268: '\u{1F4F9}', 269: '\u{1F4FA}',
+    270: '\u{1F4FB}', 271: '\u23F0',
+
+    // Category 15: Food and baking
+    280: '\u{1F35E}', 281: '\u{1F950}', 282: '\u{1F956}', 283: '\u{1F968}', 284: '\u{1F9C0}',
+    285: '\u{1F355}', 286: '\u{1F354}', 287: '\u{1F32D}', 288: '\u{1F96A}', 289: '\u{1F32E}',
+    290: '\u{1F95E}', 291: '\u{1F9C7}',
+
+    // Category 16: Drinks
+    300: '\u{1F95B}', 301: '\u2615', 302: '\u{1F375}', 303: '\u{1F9C3}', 304: '\u{1F9CB}',
+    305: '\u{1F964}', 306: '\u{1F37A}', 307: '\u{1F377}', 308: '\u{1F378}', 309: '\u{1F379}',
+    310: '\u{1FAD6}', 311: '\u{1F376}',
+
+    // Category 17: Plants and flowers
+    320: '\u{1F332}', 321: '\u{1F333}', 322: '\u{1F334}', 323: '\u{1F335}', 324: '\u{1F33F}',
+    325: '\u2618\uFE0F', 326: '\u{1F340}', 327: '\u{1F38D}', 328: '\u{1F337}', 329: '\u{1F339}',
+    330: '\u{1F33B}', 331: '\u{1F33C}',
+
+    // Category 18: Sports equipment
+    340: '\u26BD', 341: '\u{1F3C0}', 342: '\u{1F3C8}', 343: '\u26BE', 344: '\u{1F3BE}',
+    345: '\u{1F3D0}', 346: '\u{1F3C9}', 347: '\u{1F3B1}', 348: '\u{1F94A}', 349: '\u{1F94B}',
+    350: '\u{1F3B3}', 351: '\u{1F3D3}',
+
+    // Category 19: Faces and emotions
+    360: '\u{1F600}', 361: '\u{1F603}', 362: '\u{1F604}', 363: '\u{1F601}', 364: '\u{1F606}',
+    365: '\u{1F60A}', 366: '\u{1F609}', 367: '\u{1F60E}', 368: '\u{1F62E}', 369: '\u{1F634}',
+    370: '\u{1F621}', 371: '\u{1F62D}',
+
+    // Category 20: Clocks and time
+    380: '\u{1F550}', 381: '\u{1F551}', 382: '\u{1F552}', 383: '\u{1F553}', 384: '\u{1F554}',
+    385: '\u{1F555}', 386: '\u{1F556}', 387: '\u{1F557}', 388: '\u{1F558}', 389: '\u{1F559}',
+    390: '\u{1F55A}', 391: '\u{1F55B}',
+
+    // Category 21: Lunar phases and celestial bodies
+    400: '\u{1F311}', 401: '\u{1F312}', 402: '\u{1F313}', 403: '\u{1F314}', 404: '\u{1F315}',
+    405: '\u{1F316}', 406: '\u{1F317}', 407: '\u{1F318}', 408: '\u{1F319}', 409: '\u2B50',
+    410: '\u{1F31F}', 411: '\u2604\uFE0F',
+
+    // Category 22: Arrows and pointers
+    420: '\u2191', 421: '\u2193', 422: '\u2190', 423: '\u2192', 424: '\u2196',
+    425: '\u2197', 426: '\u2198', 427: '\u2199', 428: '\u2194', 429: '\u2195',
+    430: '\u279C', 431: '\u27A4',
+
+    // Category 23: Chess and strategy symbols
+    440: '\u2654', 441: '\u2655', 442: '\u2656', 443: '\u2657', 444: '\u2658',
+    445: '\u2659', 446: '\u265A', 447: '\u265B', 448: '\u265C', 449: '\u265D',
+    450: '\u265E', 451: '\u265F',
+
+    // Category 24: Religious and symbolic signs
+    460: '\u2626', 461: '\u262A', 462: '\u271D', 463: '\u2638', 464: '\u2721',
+    465: '\u262F', 466: '\u262E', 467: '\u262C', 468: '\u{1F52F}', 469: '\u{1F54E}',
+    470: '\u2625', 471: '\u269B'
+};
+
+// ============================================================
+// Difficulty band constants
+// ============================================================
+var BAND_EASY = 1;
+var BAND_MEDIUM = 2;
+var BAND_HARD = 3;
+
+// ============================================================
+// Full category database (24 categories)
+// ============================================================
+var CATEGORIES = [
+    { id: 1,  familyId: 1,  nameRU: 'Фрукты',                  difficultyBand: BAND_EASY,   itemIDs: [1,2,3,4,5,6,7,8,9,10,11,12] },
+    { id: 2,  familyId: 1,  nameRU: 'Овощи',                    difficultyBand: BAND_EASY,   itemIDs: [20,21,22,23,24,25,26,27,28,29,30,31] },
+    { id: 3,  familyId: 2,  nameRU: 'Животные',                 difficultyBand: BAND_EASY,   itemIDs: [40,41,42,43,44,45,46,47,48,49,50,51] },
+    { id: 4,  familyId: 2,  nameRU: 'Птицы',                    difficultyBand: BAND_EASY,   itemIDs: [60,61,62,63,64,65,66,67,68,69,70,71] },
+    { id: 5,  familyId: 2,  nameRU: 'Морские существа',         difficultyBand: BAND_EASY,   itemIDs: [80,81,82,83,84,85,86,87,88,89,90,91] },
+    { id: 6,  familyId: 3,  nameRU: 'Транспорт',                difficultyBand: BAND_EASY,   itemIDs: [100,101,102,103,104,105,106,107,108,109,110,111] },
+    { id: 7,  familyId: 4,  nameRU: 'Инструменты',              difficultyBand: BAND_EASY,   itemIDs: [120,121,122,123,124,125,126,127,128,129,130,131] },
+    { id: 8,  familyId: 7,  nameRU: 'Музыкальные инструменты',  difficultyBand: BAND_EASY,   itemIDs: [140,141,142,143,144,145,146,147,148,149,150,151] },
+    { id: 9,  familyId: 6,  nameRU: 'Одежда',                   difficultyBand: BAND_EASY,   itemIDs: [160,161,162,163,164,165,166,167,168,169,170,171] },
+    { id: 10, familyId: 9,  nameRU: 'Погода и небо',            difficultyBand: BAND_EASY,   itemIDs: [180,181,182,183,184,185,186,187,188,189,190,191] },
+    { id: 11, familyId: 5,  nameRU: 'Геометрические фигуры',    difficultyBand: BAND_MEDIUM, itemIDs: [200,201,202,203,204,205,206,207,208,209,210,211] },
+    { id: 12, familyId: 5,  nameRU: 'Карточные масти',          difficultyBand: BAND_MEDIUM, itemIDs: [220,221,222,223,224,225,226,227,228,229,230,231] },
+    { id: 13, familyId: 4,  nameRU: 'Канцелярия',               difficultyBand: BAND_MEDIUM, itemIDs: [240,241,242,243,244,245,246,247,248,249,250,251] },
+    { id: 14, familyId: 4,  nameRU: 'Бытовая техника',          difficultyBand: BAND_MEDIUM, itemIDs: [260,261,262,263,264,265,266,267,268,269,270,271] },
+    { id: 15, familyId: 1,  nameRU: 'Еда и выпечка',            difficultyBand: BAND_MEDIUM, itemIDs: [280,281,282,283,284,285,286,287,288,289,290,291] },
+    { id: 16, familyId: 1,  nameRU: 'Напитки',                  difficultyBand: BAND_MEDIUM, itemIDs: [300,301,302,303,304,305,306,307,308,309,310,311] },
+    { id: 17, familyId: 1,  nameRU: 'Растения и цветы',         difficultyBand: BAND_MEDIUM, itemIDs: [320,321,322,323,324,325,326,327,328,329,330,331] },
+    { id: 18, familyId: 8,  nameRU: 'Спортивные предметы',      difficultyBand: BAND_MEDIUM, itemIDs: [340,341,342,343,344,345,346,347,348,349,350,351] },
+    { id: 19, familyId: 10, nameRU: 'Лица и эмоции',            difficultyBand: BAND_MEDIUM, itemIDs: [360,361,362,363,364,365,366,367,368,369,370,371] },
+    { id: 20, familyId: 5,  nameRU: 'Часы и время',             difficultyBand: BAND_HARD,   itemIDs: [380,381,382,383,384,385,386,387,388,389,390,391] },
+    { id: 21, familyId: 5,  nameRU: 'Лунные фазы',              difficultyBand: BAND_HARD,   itemIDs: [400,401,402,403,404,405,406,407,408,409,410,411] },
+    { id: 22, familyId: 5,  nameRU: 'Стрелки и указатели',      difficultyBand: BAND_HARD,   itemIDs: [420,421,422,423,424,425,426,427,428,429,430,431] },
+    { id: 23, familyId: 5,  nameRU: 'Шахматные символы',        difficultyBand: BAND_HARD,   itemIDs: [440,441,442,443,444,445,446,447,448,449,450,451] },
+    { id: 24, familyId: 5,  nameRU: 'Религиозные знаки',        difficultyBand: BAND_HARD,   itemIDs: [460,461,462,463,464,465,466,467,468,469,470,471] }
+];
+
+// ============================================================
+// Index structures (production-compatible)
+// ============================================================
+var CATEGORY_BY_ID = new Map(CATEGORIES.map(function(cat) { return [cat.id, cat]; }));
+
+var FAMILY_CATEGORIES = new Map();
+for (var ci = 0; ci < CATEGORIES.length; ci++) {
+    var cat = CATEGORIES[ci];
+    if (!FAMILY_CATEGORIES.has(cat.familyId)) FAMILY_CATEGORIES.set(cat.familyId, []);
+    FAMILY_CATEGORIES.get(cat.familyId).push(cat.id);
+}
+
+// ============================================================
+// Blacklisted category pairs (from production)
+// ============================================================
+var BLACKLISTED_PAIRS = [
+    { catA: 1,  catB: 2,  minComplexity: 70 },  // fruits <-> vegetables
+    { catA: 3,  catB: 4,  minComplexity: 60 },  // animals <-> birds
+    { catA: 10, catB: 21, minComplexity: 75 },   // weather <-> moon phases
+    { catA: 7,  catB: 13, minComplexity: 50 },   // tools <-> stationery
+    { catA: 1,  catB: 17, minComplexity: 60 },   // fruits <-> plants
+    { catA: 15, catB: 16, minComplexity: 55 },   // food <-> drinks
+    { catA: 2,  catB: 17, minComplexity: 65 },   // vegetables <-> plants
+    { catA: 3,  catB: 5,  minComplexity: 55 },   // animals <-> sea creatures
+    { catA: 7,  catB: 14, minComplexity: 55 },   // tools <-> electronics
+    { catA: 13, catB: 14, minComplexity: 50 }    // stationery <-> electronics
+];
+
+// ============================================================
+// Blacklist check
+// ============================================================
+function isPairBlacklisted(catA, catB, complexity) {
+    for (var i = 0; i < BLACKLISTED_PAIRS.length; i++) {
+        var bp = BLACKLISTED_PAIRS[i];
+        var samePair =
+            (bp.catA === catA && bp.catB === catB) ||
+            (bp.catA === catB && bp.catB === catA);
+        if (samePair && complexity < bp.minComplexity) return true;
+    }
+    return false;
+}
+
+// ============================================================
+// Family proximity (production logic)
+// ============================================================
+function isCloseFamily(familyA, familyB) {
+    return familyA === familyB;
+}
+
+// ============================================================
+// Canvas constants (production geometry)
+// ============================================================
+var CANVAS_CSS_W = 320;
+var CANVAS_CSS_H = 240;
+var OUTER_PAD = 14;
+var GAP = 10;
+var GRID_COLS = 3;
+var GRID_ROWS = 2;
+var CELL_RADIUS = 8;
+
+// ============================================================
+// Highlight colors (production values)
+// ============================================================
+var SUCCESS_STROKE = '#1f8f47';
+var SUCCESS_FILL = 'rgba(31, 143, 71, 0.18)';
+var ERROR_STROKE = '#c53b3b';
+var ERROR_FILL = 'rgba(197, 59, 59, 0.18)';
+
+// ============================================================
+// Utility: Clamp complexity to 1..100
+// ============================================================
+function clampComplexity(value) {
+    var n = Math.round(Number(value) || 1);
+    return Math.max(1, Math.min(100, n));
+}
+
+// ============================================================
+// Utility: Seeded PRNG (mulberry32, production-compatible)
+// ============================================================
+function mulberry32(seed) {
+    var t = seed >>> 0;
+    return function() {
+        t += 0x6D2B79F5;
+        var r = Math.imul(t ^ (t >>> 15), 1 | t);
+        r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+        return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+// ============================================================
+// Utility: Random integer [0, maxExclusive)
+// ============================================================
+function randomInt(maxExclusive) {
+    return Math.floor(Math.random() * maxExclusive);
+}
+
+// ============================================================
+// Utility: Weighted random choice from candidates
+// ============================================================
+function weightedChoice(candidates) {
+    var total = 0;
+    for (var i = 0; i < candidates.length; i++) total += candidates[i].weight;
+    var r = randomInt(total);
+    var acc = 0;
+    for (var i = 0; i < candidates.length; i++) {
+        acc += candidates[i].weight;
+        if (r < acc) return candidates[i].value;
+    }
+    return candidates[candidates.length - 1].value;
+}
+
+// ============================================================
+// Utility: Fisher-Yates shuffle in place
+// ============================================================
+function shuffleInPlace(arr) {
+    for (var i = arr.length - 1; i > 0; i--) {
+        var j = randomInt(i + 1);
+        var tmp = arr[i];
+        arr[i] = arr[j];
+        arr[j] = tmp;
+    }
+    return arr;
+}
+
+// ============================================================
+// Utility: Sample n distinct items without replacement
+// ============================================================
+function sampleDistinctItems(itemIDs, n) {
+    var pool = itemIDs.slice();
+    if (n >= pool.length) return shuffleInPlace(pool);
+    for (var i = 0; i < n; i++) {
+        var j = i + randomInt(pool.length - i);
+        var tmp = pool[i];
+        pool[i] = pool[j];
+        pool[j] = tmp;
+    }
+    return pool.slice(0, n);
+}
+
+// ============================================================
+// Utility: Sample one random item from array
+// ============================================================
+function sampleOneItem(itemIDs) {
+    return itemIDs[randomInt(itemIDs.length)];
+}
+
+// ============================================================
+// Complexity -> difficulty profile (production mapping)
+// ============================================================
+function difficultyProfileFor(level) {
+    var p = {
+        complexity: level,
+        allowedBands: [],
+        bandWeights: [],
+        closeFamilyProb: 0,
+        styleFlags: 0
+    };
+
+    if (level <= 20) {
+        p.allowedBands = [BAND_EASY];
+        p.bandWeights = [100];
+        p.closeFamilyProb = 0;
+        p.styleFlags = 0x00;
+    } else if (level <= 40) {
+        p.allowedBands = [BAND_EASY, BAND_MEDIUM];
+        p.bandWeights = [70, 30];
+        p.closeFamilyProb = 5;
+        p.styleFlags = 0x02;
+    } else if (level <= 60) {
+        p.allowedBands = [BAND_EASY, BAND_MEDIUM];
+        p.bandWeights = [25, 75];
+        p.closeFamilyProb = 25;
+        p.styleFlags = 0x03;
+    } else if (level <= 80) {
+        p.allowedBands = [BAND_MEDIUM, BAND_HARD];
+        p.bandWeights = [45, 55];
+        p.closeFamilyProb = 55;
+        p.styleFlags = 0x07;
+    } else {
+        p.allowedBands = [BAND_MEDIUM, BAND_HARD];
+        p.bandWeights = [45, 55];
+        p.closeFamilyProb = 80;
+        p.styleFlags = 0x0F;
+    }
+
+    return p;
+}
+
+// ============================================================
+// Choose base category using weighted band selection
+// ============================================================
+function chooseBaseCategory(profile) {
+    var candidates = [];
+
+    for (var i = 0; i < CATEGORIES.length; i++) {
+        var cat = CATEGORIES[i];
+        if (cat.itemIDs.length < 6) continue;
+        for (var j = 0; j < profile.allowedBands.length; j++) {
+            if (cat.difficultyBand === profile.allowedBands[j]) {
+                candidates.push({ value: cat, weight: profile.bandWeights[j] });
+                break;
+            }
+        }
+    }
+
+    if (!candidates.length) {
+        return CATEGORIES.find(function(c) { return c.difficultyBand === BAND_EASY && c.itemIDs.length >= 6; }) || CATEGORIES[0];
+    }
+
+    return weightedChoice(candidates);
+}
+
+// ============================================================
+// Choose outlier category (production logic)
+// ============================================================
+function chooseOutlierCategory(baseCat, profile) {
+    var allowClose = randomInt(100) < profile.closeFamilyProb;
+    var candidates = [];
+
+    for (var i = 0; i < CATEGORIES.length; i++) {
+        var cat = CATEGORIES[i];
+        if (cat.id === baseCat.id) continue;
+        if (cat.itemIDs.length < 1) continue;
+
+        var close = isCloseFamily(cat.familyId, baseCat.familyId);
+        if (close && !allowClose) continue;
+        if (isPairBlacklisted(baseCat.id, cat.id, profile.complexity)) continue;
+
+        candidates.push(cat);
+    }
+
+    if (!candidates.length) {
+        return CATEGORIES.find(function(c) { return c.id !== baseCat.id; }) || CATEGORIES[0];
+    }
+
+    return candidates[randomInt(candidates.length)];
+}
+
+// ============================================================
+// Place items into 6-cell array with outlier at correctCell
+// ============================================================
+function placeItems(baseItems, outlierItem, correctCell) {
+    var cells = new Array(6);
+    cells[correctCell] = outlierItem;
+    var baseIdx = 0;
+    for (var i = 0; i < 6; i++) {
+        if (i === correctCell) continue;
+        cells[i] = baseItems[baseIdx++];
+    }
+    return cells;
+}
+
+// ============================================================
+// Confidence scoring (production logic)
+// ============================================================
+function timingAdjustment(renderToClickMs) {
+    if (renderToClickMs < 250) return -20;
+    if (renderToClickMs < 450) return -12;
+    if (renderToClickMs < 700) return -6;
+    if (renderToClickMs <= 8000) return 0;
+    if (renderToClickMs <= 15000) return -3;
+    if (renderToClickMs <= 30000) return -6;
+    return -10;
+}
+
+function signalAdjustment(params) {
+    var adj = 0;
+
+    if (!params.insideCell) adj -= 15;
+    if (params.pointerCount === 0) adj -= 10;
+    if (params.pointerCount > 4) adj -= 5;
+    if (params.canvasFocused) adj += 2;
+    if (params.trustedPointer) adj += 1;
+
+    if (adj < -20) adj = -20;
+    if (adj > 3) adj = 3;
+    return adj;
+}
+
+function computeConfidence(params) {
+    if (!params.isCorrect) return 0;
+
+    var confidence = 80;
+    confidence += timingAdjustment(params.elapsedMs);
+    confidence += signalAdjustment({
+        insideCell: true,
+        trustedPointer: true,
+        canvasFocused: params.canvasFocused,
+        pointerCount: params.pointerCount
+    });
+
+    confidence = Math.max(0, Math.min(95, confidence));
+    return confidence;
+}
+
+// ============================================================
+// Main application class
+// ============================================================
+function App() {
+    this.canvas = null;
+    this.ctx = null;
+    this.dpr = 1;
+
+    this.statusEl = null;
+    this.confidenceEl = null;
+    this.footerEl = null;
+    this.sliderEl = null;
+    this.sliderValueEl = null;
+    this.refreshButton = null;
+    this.newTaskButton = null;
+
+    this.pointerCount = 0;
+    this.canvasFocusedRecently = false;
+    this._focusTimer = null;
+
+    this.state = {
+        challengeId: '',
+        complexity: 50,
+        profile: null,
+        baseCategoryID: 0,
+        outlierCategoryID: 0,
+        correctCell: 0,
+        cellItemIDs: [],
+        renderSeed: 0,
+        styleFlags: 0,
+        cells: [],
+        firstRenderAt: 0,
+        solved: false,
+        selectedCell: null,
+        result: null,
+        confidence: null,
+        revealCorrectCell: false,
+        footerHidden: false
+    };
+}
+
+// ============================================================
+// Initialize and run the app
+// ============================================================
+App.prototype.run = function() {
+    this.cacheDom();
+    this.setupCanvas();
+    this.bindEvents();
+    this.updateComplexityLabel();
+
+    // Draw initial placeholder
+    this.ctx.fillStyle = '#f8f8f8';
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+    // Generate first challenge immediately
+    this.generateChallenge();
+};
+
+// ============================================================
+// Cache DOM references
+// ============================================================
+App.prototype.cacheDom = function() {
+    this.canvas = document.getElementById('captchaCanvas');
+    this.ctx = this.canvas.getContext('2d');
+    this.statusEl = document.getElementById('status');
+    this.confidenceEl = document.getElementById('confidence');
+    this.footerEl = document.getElementById('footer');
+    this.sliderEl = document.getElementById('complexitySlider');
+    this.sliderValueEl = document.getElementById('complexityValue');
+    this.refreshButton = document.getElementById('refreshButton');
+    this.newTaskButton = document.getElementById('newTaskButton');
+};
+
+// ============================================================
+// Setup canvas with DPR scaling
+// ============================================================
+App.prototype.setupCanvas = function() {
+    this.dpr = window.devicePixelRatio || 1;
+    this.canvas.width = CANVAS_CSS_W * this.dpr;
+    this.canvas.height = CANVAS_CSS_H * this.dpr;
+    this.canvas.style.width = CANVAS_CSS_W + 'px';
+    this.canvas.style.height = CANVAS_CSS_H + 'px';
+};
+
+// ============================================================
+// Bind all event listeners
+// ============================================================
+App.prototype.bindEvents = function() {
+    var self = this;
+
+    // Slider input updates label
+    this.sliderEl.addEventListener('input', function() {
+        self.updateComplexityLabel();
+    });
+
+    // Refresh button generates new challenge
+    this.refreshButton.addEventListener('click', function() {
+        self.generateChallenge();
+    });
+
+    // New task button generates new challenge
+    this.newTaskButton.addEventListener('click', function() {
+        self.generateChallenge();
+    });
+
+    // Canvas pointer tracking for confidence scoring
+    this.canvas.addEventListener('pointerenter', function() {
+        self.canvasFocusedRecently = true;
+        if (self._focusTimer) {
+            clearTimeout(self._focusTimer);
+            self._focusTimer = null;
+        }
+    });
+
+    this.canvas.addEventListener('pointerleave', function() {
+        if (self._focusTimer) clearTimeout(self._focusTimer);
+        self._focusTimer = setTimeout(function() {
+            self.canvasFocusedRecently = false;
+            self._focusTimer = null;
+        }, 500);
+    });
+
+    // Canvas click handler
+    this.canvas.addEventListener('pointerdown', function(evt) {
+        self.handleCanvasPointerDown(evt);
+    });
+};
+
+// ============================================================
+// Update the complexity label text
+// ============================================================
+App.prototype.updateComplexityLabel = function() {
+    this.sliderValueEl.textContent = this.sliderEl.value;
+};
+
+// ============================================================
+// Generate a new challenge
+// ============================================================
+App.prototype.generateChallenge = function() {
+    var complexity = clampComplexity(this.sliderEl.value);
+    var profile = difficultyProfileFor(complexity);
+    var baseCat = chooseBaseCategory(profile);
+    var outlierCat = chooseOutlierCategory(baseCat, profile);
+    var baseItems = sampleDistinctItems(baseCat.itemIDs, 5);
+    var outlierItem = sampleOneItem(outlierCat.itemIDs);
+    var correctCell = randomInt(6);
+    var cellItemIDs = placeItems(baseItems, outlierItem, correctCell);
+    var renderSeed = (Math.random() * 0x100000000) >>> 0;
+
+    this.state.challengeId = 'local-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+    this.state.complexity = complexity;
+    this.state.profile = profile;
+    this.state.baseCategoryID = baseCat.id;
+    this.state.outlierCategoryID = outlierCat.id;
+    this.state.correctCell = correctCell;
+    this.state.cellItemIDs = cellItemIDs;
+    this.state.renderSeed = renderSeed;
+    this.state.styleFlags = profile.styleFlags;
+    this.state.solved = false;
+    this.state.selectedCell = null;
+    this.state.result = null;
+    this.state.confidence = null;
+    this.state.revealCorrectCell = false;
+
+    // Reset pointer count for new challenge
+    this.pointerCount = 0;
+
+    // Build layout cells
+    this.state.cells = this.buildLayout();
+    this.state.firstRenderAt = performance.now();
+
+    // Reset UI
+    this.resetResultUI();
+    this.render();
+
+    // Hide footer after first generation
+    if (this.footerEl && !this.state.footerHidden) {
+        this.footerEl.style.display = 'none';
+        this.state.footerHidden = true;
+    }
+};
+
+// ============================================================
+// Build grid layout with seeded variations
+// ============================================================
+App.prototype.buildLayout = function() {
+    var dpr = this.dpr;
+    var w = CANVAS_CSS_W * dpr;
+    var h = CANVAS_CSS_H * dpr;
+    var pad = OUTER_PAD * dpr;
+    var gap = GAP * dpr;
+    var cellW = (w - pad * 2 - gap * (GRID_COLS - 1)) / GRID_COLS;
+    var cellH = (h - pad * 2 - gap * (GRID_ROWS - 1)) / GRID_ROWS;
+    var baseFontPx = Math.min(cellW, cellH) * 0.55;
+
+    var complexity = this.state.complexity;
+
+    // Variation ranges based on complexity (production values)
+    var sizeVar = complexity <= 20 ? 0.02 :
+                  complexity <= 40 ? 0.04 :
+                  complexity <= 60 ? 0.07 :
+                  complexity <= 80 ? 0.10 : 0.12;
+
+    var rotMax = complexity <= 20 ? 0 :
+                 complexity <= 40 ? 3 :
+                 complexity <= 60 ? 5 :
+                 complexity <= 80 ? 7 : 9;
+
+    var offMax = complexity <= 20 ? 2 :
+                 complexity <= 40 ? 3 :
+                 complexity <= 60 ? 5 :
+                 complexity <= 80 ? 7 : 9;
+
+    // Use seeded RNG for deterministic layout
+    var rng = mulberry32(this.state.renderSeed);
+
+    var cells = [];
+    for (var row = 0; row < GRID_ROWS; row++) {
+        for (var col = 0; col < GRID_COLS; col++) {
+            var index = row * GRID_COLS + col;
+            var x = pad + col * (cellW + gap);
+            var y = pad + row * (cellH + gap);
+
+            // Per-cell seeded variations
+            var sizeScale = 1 + (rng() * 2 - 1) * sizeVar;
+            var fontPx = baseFontPx * sizeScale;
+            var rotDeg = (rng() * 2 - 1) * rotMax;
+            var offsetX = (rng() * 2 - 1) * offMax * dpr;
+            var offsetY = (rng() * 2 - 1) * offMax * dpr;
+
+            // Slightly varying bluish HSL background (production formula)
+            var hueShift = Math.floor(rng() * 20 + 210);
+            var saturation = 10 + Math.floor(rng() * 15);
+            var lightness = 93 + Math.floor(rng() * 5);
+            var bgColor = 'hsl(' + hueShift + ', ' + saturation + '%, ' + lightness + '%)';
+
+            cells.push({
+                index: index,
+                x: x,
+                y: y,
+                w: cellW,
+                h: cellH,
+                centerX: x + cellW / 2,
+                centerY: y + cellH / 2,
+                fontPx: fontPx,
+                rotationRad: rotDeg * Math.PI / 180,
+                offsetX: offsetX,
+                offsetY: offsetY,
+                bgColor: bgColor
+            });
+        }
+    }
+
+    return cells;
+};
+
+// ============================================================
+// Draw a rounded rectangle path (compatible, no roundRect API)
+// ============================================================
+App.prototype.drawRoundedCellPath = function(ctx, cell, radius) {
+    ctx.beginPath();
+    ctx.moveTo(cell.x + radius, cell.y);
+    ctx.lineTo(cell.x + cell.w - radius, cell.y);
+    ctx.arcTo(cell.x + cell.w, cell.y, cell.x + cell.w, cell.y + radius, radius);
+    ctx.lineTo(cell.x + cell.w, cell.y + cell.h - radius);
+    ctx.arcTo(cell.x + cell.w, cell.y + cell.h, cell.x + cell.w - radius, cell.y + cell.h, radius);
+    ctx.lineTo(cell.x + radius, cell.y + cell.h);
+    ctx.arcTo(cell.x, cell.y + cell.h, cell.x, cell.y + cell.h - radius, radius);
+    ctx.lineTo(cell.x, cell.y + radius);
+    ctx.arcTo(cell.x, cell.y, cell.x + radius, cell.y, radius);
+    ctx.closePath();
+};
+
+// ============================================================
+// Draw highlight overlay on a cell
+// ============================================================
+App.prototype.drawCellHighlight = function(ctx, cell, fillStyle, strokeStyle, lineWidth) {
+    var r = CELL_RADIUS * this.dpr;
+
+    // Fill
+    this.drawRoundedCellPath(ctx, cell, r);
+    ctx.fillStyle = fillStyle;
+    ctx.fill();
+
+    // Stroke
+    this.drawRoundedCellPath(ctx, cell, r);
+    ctx.lineWidth = lineWidth;
+    ctx.strokeStyle = strokeStyle;
+    ctx.stroke();
+};
+
+// ============================================================
+// Draw a single cell (background + glyph)
+// ============================================================
+App.prototype.drawCell = function(ctx, cell, glyph) {
+    var r = CELL_RADIUS * this.dpr;
+
+    // Draw rounded cell background
+    this.drawRoundedCellPath(ctx, cell, r);
+    ctx.fillStyle = cell.bgColor;
+    ctx.fill();
+
+    // Draw emoji glyph
+    ctx.font = cell.fontPx + 'px system-ui, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#000000';
+
+    ctx.save();
+    ctx.translate(cell.centerX + cell.offsetX, cell.centerY + cell.offsetY);
+    if (cell.rotationRad !== 0) {
+        ctx.rotate(cell.rotationRad);
+    }
+    ctx.fillText(glyph, 0, 0);
+    ctx.restore();
+};
+
+// ============================================================
+// Draw decorative noise (production-style)
+// ============================================================
+App.prototype.drawNoise = function(ctx) {
+    var complexity = this.state.complexity;
+    var dpr = this.dpr;
+    var w = this.canvas.width;
+    var h = this.canvas.height;
+
+    // Separate noise RNG
+    var rng = mulberry32(this.state.renderSeed + 1000);
+
+    // Dots
+    var dotCount = complexity <= 40 ? 3 : complexity <= 60 ? 6 : complexity <= 80 ? 10 : 15;
+    for (var i = 0; i < dotCount; i++) {
+        var x = rng() * w;
+        var y = rng() * h;
+        var radius = (rng() * 2 + 0.5) * dpr;
+        var alpha = 0.03 + rng() * 0.05;
+        var hue = Math.floor(rng() * 360);
+        ctx.fillStyle = 'hsla(' + hue + ', 30%, 60%, ' + alpha + ')';
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // Optional lines for higher complexity
+    if (complexity > 60) {
+        var lineCount = complexity <= 80 ? 2 : 4;
+        for (var i = 0; i < lineCount; i++) {
+            ctx.strokeStyle = 'rgba(150, 150, 150, ' + (0.02 + rng() * 0.03) + ')';
+            ctx.lineWidth = 0.5 * dpr;
+            ctx.beginPath();
+            ctx.moveTo(rng() * w, rng() * h);
+            ctx.lineTo(rng() * w, rng() * h);
+            ctx.stroke();
+        }
+    }
+};
+
+// ============================================================
+// Draw result highlight overlays
+// ============================================================
+App.prototype.drawResultOverlays = function(ctx) {
+    if (!this.state.solved || this.state.selectedCell === null) return;
+
+    var dpr = this.dpr;
+    var hlLine = 3 * dpr;
+    var cells = this.state.cells;
+
+    for (var i = 0; i < cells.length; i++) {
+        var cell = cells[i];
+
+        // Correct answer: green highlight on selected cell
+        if (this.state.result === 'correct' && this.state.selectedCell === cell.index) {
+            this.drawCellHighlight(ctx, cell, SUCCESS_FILL, SUCCESS_STROKE, hlLine);
+        }
+
+        // Wrong answer: red highlight on selected cell
+        if (this.state.result === 'wrong' && this.state.selectedCell === cell.index) {
+            this.drawCellHighlight(ctx, cell, ERROR_FILL, ERROR_STROKE, hlLine);
+        }
+
+        // Wrong answer after reveal: green highlight on correct cell
+        if (this.state.result === 'wrong' && this.state.revealCorrectCell && this.state.correctCell === cell.index) {
+            this.drawCellHighlight(ctx, cell, SUCCESS_FILL, SUCCESS_STROKE, hlLine);
+        }
+    }
+};
+
+// ============================================================
+// Main render function
+// ============================================================
+App.prototype.render = function() {
+    var ctx = this.ctx;
+
+    // Clear canvas with white background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+    var cells = this.state.cells;
+    var cellItemIDs = this.state.cellItemIDs;
+
+    // Draw all 6 cells
+    for (var i = 0; i < cells.length; i++) {
+        var glyph = ITEM_GLYPHS[cellItemIDs[i]] || '?';
+        this.drawCell(ctx, cells[i], glyph);
+    }
+
+    // Draw noise if styleFlags has bit 0x01 set
+    if (this.state.styleFlags & 0x01) {
+        this.drawNoise(ctx);
+    }
+
+    // Draw result overlays on top
+    this.drawResultOverlays(ctx);
+};
+
+// ============================================================
+// Convert pointer event to canvas coordinates
+// ============================================================
+App.prototype.getCanvasPoint = function(evt) {
+    var rect = this.canvas.getBoundingClientRect();
+    var x = (evt.clientX - rect.left) * (this.canvas.width / rect.width);
+    var y = (evt.clientY - rect.top) * (this.canvas.height / rect.height);
+    return { x: x, y: y };
+};
+
+// ============================================================
+// Hit test: find which cell was clicked
+// ============================================================
+App.prototype.hitTest = function(px, py) {
+    var cells = this.state.cells;
+    for (var i = 0; i < cells.length; i++) {
+        var cell = cells[i];
+        if (px >= cell.x && px <= cell.x + cell.w && py >= cell.y && py <= cell.y + cell.h) {
+            return cell.index;
+        }
+    }
+    return -1;
+};
+
+// ============================================================
+// Handle pointer down on canvas
+// ============================================================
+App.prototype.handleCanvasPointerDown = function(evt) {
+    this.pointerCount += 1;
+
+    // Ignore if no challenge loaded
+    if (!this.state.cellItemIDs.length) return;
+    // Ignore if already solved
+    if (this.state.solved) return;
+
+    var pt = this.getCanvasPoint(evt);
+    var cellIdx = this.hitTest(pt.x, pt.y);
+    if (cellIdx < 0) return;
+
+    var elapsedMs = Math.max(0, performance.now() - this.state.firstRenderAt);
+    var isCorrect = cellIdx === this.state.correctCell;
+
+    this.applyResult(cellIdx, isCorrect, elapsedMs);
+};
+
+// ============================================================
+// Apply result after click
+// ============================================================
+App.prototype.applyResult = function(cellIdx, isCorrect, elapsedMs) {
+    this.state.solved = true;
+    this.state.selectedCell = cellIdx;
+    this.state.result = isCorrect ? 'correct' : 'wrong';
+    this.state.revealCorrectCell = false;
+
+    this.state.confidence = computeConfidence({
+        isCorrect: isCorrect,
+        elapsedMs: elapsedMs,
+        pointerCount: this.pointerCount,
+        canvasFocused: this.canvasFocusedRecently
+    });
+
+    this.updateStatusUI();
+    this.render();
+
+    // If wrong, reveal correct cell after 500ms
+    if (!isCorrect) {
+        var self = this;
+        setTimeout(function() {
+            if (self.state.result === 'wrong') {
+                self.state.revealCorrectCell = true;
+                self.render();
+            }
+        }, 500);
+    }
+};
+
+// ============================================================
+// Update status text, confidence, and button visibility
+// ============================================================
+App.prototype.updateStatusUI = function() {
+    this.statusEl.classList.remove('status-success', 'status-error', 'status-neutral');
+
+    if (this.state.result === 'correct') {
+        this.statusEl.textContent = '\u2713 \u041F\u0440\u0430\u0432\u0438\u043B\u044C\u043D\u043E!';
+        this.statusEl.classList.add('status-success');
+        this.confidenceEl.textContent = '\u0423\u0432\u0435\u0440\u0435\u043D\u043D\u043E\u0441\u0442\u044C: ' + this.state.confidence + '%';
+        this.newTaskButton.hidden = false;
+        this.canvas.style.cursor = 'default';
+        return;
+    }
+
+    if (this.state.result === 'wrong') {
+        this.statusEl.textContent = '\u2717 \u041D\u0435\u043F\u0440\u0430\u0432\u0438\u043B\u044C\u043D\u043E';
+        this.statusEl.classList.add('status-error');
+        this.confidenceEl.textContent = '\u0423\u0432\u0435\u0440\u0435\u043D\u043D\u043E\u0441\u0442\u044C: ' + this.state.confidence + '%';
+        this.newTaskButton.hidden = false;
+        this.canvas.style.cursor = 'default';
+        return;
+    }
+
+    this.statusEl.textContent = '';
+    this.statusEl.classList.add('status-neutral');
+    this.confidenceEl.textContent = '';
+    this.newTaskButton.hidden = true;
+    this.canvas.style.cursor = 'pointer';
+};
+
+// ============================================================
+// Reset result UI for new challenge
+// ============================================================
+App.prototype.resetResultUI = function() {
+    this.statusEl.textContent = '';
+    this.statusEl.classList.remove('status-success', 'status-error', 'status-neutral');
+    this.statusEl.classList.add('status-neutral');
+    this.confidenceEl.textContent = '';
+    this.newTaskButton.hidden = true;
+    this.canvas.style.cursor = 'pointer';
+};
+
+// ============================================================
+// Boot the application on DOM ready
+// ============================================================
+document.addEventListener('DOMContentLoaded', function() {
+    var app = new App();
+    app.run();
+});
+</script>
+
+<!-- Iframe-to-parent mouse/click event forwarder for behavioral analysis -->
+<script>
+(function () {
+  // Only activate when running inside an iframe
+  if (window.parent === window) return;
+
+  var lastMoveAt = 0;
+  var MOVE_INTERVAL_MS = 40; // Throttle to ~25 fps
+
+  function postToParent(type, e) {
+    window.parent.postMessage({
+      type: type,
+      clientX: e.clientX,
+      clientY: e.clientY,
+      timestamp: performance.now()
+    }, '*');
+  }
+
+  // Forward throttled mousemove events
+  document.addEventListener('mousemove', function (e) {
+    var now = performance.now();
+    if (now - lastMoveAt < MOVE_INTERVAL_MS) return;
+    lastMoveAt = now;
+    postToParent('captcha:mouseMove', e);
+  }, { passive: true });
+
+  // Forward click events (capture phase for robustness)
+  document.addEventListener('click', function (e) {
+    postToParent('captcha:click', e);
+  }, true);
+})();
+</script>
+</body>
+</html>

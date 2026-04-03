@@ -1,0 +1,1309 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Alphabet Filter Demo</title>
+  <style>
+    /* ========================================================
+       BASE DOCUMENT STYLES
+       ======================================================== */
+    html, body {
+      padding: 0;
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 24px 12px;
+      box-sizing: border-box;
+    }
+
+    /* ========================================================
+       APP CONTAINER
+       ======================================================== */
+    #app {
+      padding: 16px;
+      border-radius: 20px 20px 16px 16px;
+      background: #fff;
+      max-width: 420px;
+      width: 100%;
+      margin: 0 auto;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+      box-sizing: border-box;
+    }
+
+    /* ========================================================
+       TITLE / SUBTITLE
+       ======================================================== */
+    .title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #1a202c;
+      margin: 0 0 4px;
+      line-height: 1.3;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: #64748b;
+      margin: 0 0 14px;
+      line-height: 1.4;
+    }
+
+    /* ========================================================
+       CANVAS WRAPPER
+       ======================================================== */
+    .canvas-wrapper {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 14px;
+    }
+
+    .canvas-wrapper canvas {
+      display: block;
+      border-radius: 16px;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+
+    /* ========================================================
+       ACTION BUTTONS
+       ======================================================== */
+    .actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    .actions-main {
+      margin-bottom: 8px;
+    }
+
+    .actions-secondary {
+      margin-top: 8px;
+    }
+
+    .actions button,
+    .complexity-actions button {
+      flex: 1;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color .15s ease, opacity .15s ease, transform .05s ease;
+      border: none;
+      outline: none;
+    }
+
+    .actions button:active:not(:disabled),
+    .complexity-actions button:active:not(:disabled) {
+      transform: translateY(1px);
+    }
+
+    button:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+
+    /* Confirm */
+    .confirm-btn {
+      background: #3b82f6;
+      color: #fff;
+    }
+    .confirm-btn:hover:not(:disabled) { background: #2563eb; }
+    .confirm-btn:active:not(:disabled) { background: #1d4ed8; }
+
+    /* Reset */
+    .reset-btn {
+      background: #f1f5f9;
+      color: #475569;
+    }
+    .reset-btn:hover:not(:disabled) { background: #e2e8f0; }
+    .reset-btn:active:not(:disabled) { background: #cbd5e1; }
+
+    /* New task / Refresh */
+    .new-task-btn,
+    .refresh-btn {
+      background: #0f172a;
+      color: #fff;
+    }
+    .new-task-btn:hover:not(:disabled),
+    .refresh-btn:hover:not(:disabled) { background: #1e293b; }
+    .new-task-btn:active:not(:disabled),
+    .refresh-btn:active:not(:disabled) { background: #111827; }
+
+    /* ========================================================
+       STATUS AREA
+       ======================================================== */
+    .status {
+      text-align: center;
+      font-size: 13px;
+      color: #64748b;
+      min-height: 20px;
+      line-height: 20px;
+    }
+
+    .status.is-success {
+      color: #166534;
+      font-weight: 600;
+    }
+
+    .status.is-warning {
+      color: #92400e;
+      font-weight: 600;
+    }
+
+    .status.is-error {
+      color: #991b1b;
+      font-weight: 600;
+    }
+
+    /* ========================================================
+       COMPLEXITY PANEL
+       ======================================================== */
+    .complexity-panel {
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid #e2e8f0;
+    }
+
+    .complexity-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 13px;
+      color: #475569;
+      font-weight: 600;
+    }
+
+    #complexityRange {
+      width: 100%;
+      margin: 0;
+      accent-color: #3b82f6;
+    }
+
+    .complexity-actions {
+      display: flex;
+      margin-top: 10px;
+    }
+
+    /* ========================================================
+       PULSING ANIMATION FOR MISSED CELLS
+       ======================================================== */
+    @keyframes pulse-missed {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <h1 class="title">Найди нерусские буквы</h1>
+    <p class="subtitle">Нажми на все буквы, которые не относятся к русскому алфавиту</p>
+
+    <div class="canvas-wrapper">
+      <canvas id="captchaCanvas" role="img" aria-label="Капча с буквами"></canvas>
+    </div>
+
+    <div class="actions actions-main">
+      <button id="confirmBtn" class="confirm-btn" disabled>Подтвердить</button>
+      <button id="resetBtn" class="reset-btn" disabled>Сбросить</button>
+    </div>
+
+    <div id="status" class="status" aria-live="polite"></div>
+
+    <div class="actions actions-secondary">
+      <button id="newTaskBtn" class="new-task-btn" hidden>Новое задание</button>
+    </div>
+
+    <div class="complexity-panel">
+      <div class="complexity-header">
+        <label for="complexityRange">Сложность</label>
+        <span id="complexityValue">50</span>
+      </div>
+      <input id="complexityRange" type="range" min="1" max="100" value="50">
+      <div class="complexity-actions">
+        <button id="refreshBtn" class="refresh-btn">Обновить</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ================================================================
+    // CONSTANTS — Character pools
+    // ================================================================
+
+    // Full uppercase Cyrillic alphabet
+    const RUSSIAN_UPPER = [
+      '\u0410','\u0411','\u0412','\u0413','\u0414','\u0415','\u0401','\u0416','\u0417','\u0418','\u0419',
+      '\u041A','\u041B','\u041C','\u041D','\u041E','\u041F','\u0420','\u0421','\u0422','\u0423','\u0424',
+      '\u0425','\u0426','\u0427','\u0428','\u0429','\u042A','\u042B','\u042C','\u042D','\u042E','\u042F'
+    ];
+
+    // Greek letters — visually distinct from Cyrillic
+    const FOREIGN_EASY = ['\u03A9','\u03A8','\u03A6','\u03A3','\u0394','\u039B','\u039E','\u03A0','\u0398','\u03B6','\u03BE','\u03B4'];
+
+    // Latin letters that are obviously different from Cyrillic
+    const FOREIGN_MEDIUM = ['G','F','J','L','Q','W','D','Z','N'];
+
+    // Latin lookalikes of Cyrillic letters (tricky!)
+    const FOREIGN_HARD = ['A','B','C','E','H','K','M','O','P','T','X'];
+
+    // Russian letters visually similar to hard-pool Latin lookalikes
+    const RUSSIAN_LOOKALIKES = ['\u0410','\u0412','\u0415','\u041A','\u041C','\u041D','\u041E','\u0420','\u0421','\u0422','\u0425'];
+
+    // Rare Russian letters — used less frequently
+    const RUSSIAN_RARE = new Set(['\u0401','\u042A','\u042B','\u042C','\u0429']);
+
+    // ================================================================
+    // CONSTANTS — Font stacks
+    // ================================================================
+
+    // Normal font families for Russian and general cells
+    const RUSSIAN_FONTS = [
+      'Inter, system-ui, sans-serif',
+      'Segoe UI, Arial, sans-serif',
+      'Roboto, Arial, sans-serif',
+      'system-ui, Helvetica, sans-serif'
+    ];
+
+    // Slightly different font families for hard-pool foreign cues
+    const FOREIGN_HARD_FONTS = [
+      'Arial, sans-serif',
+      'Verdana, sans-serif',
+      'Trebuchet MS, sans-serif'
+    ];
+
+    // ================================================================
+    // CONSTANTS — Color palettes
+    // ================================================================
+
+    // Base text colors
+    const TEXT_COLORS = ['#1C2430', '#243142', '#2B3340', '#23304A'];
+
+    // Shifted (slightly bluer) colors for hard-pool foreign cue
+    const SHIFTED_TEXT_COLORS = ['#2A3450', '#1F2E48', '#2E3A52', '#253554'];
+
+    // ================================================================
+    // CONSTANTS — Canvas layout
+    // ================================================================
+
+    const OUTER_PADDING = 16;
+    const CELL_GAP = 12;
+    const CELL_RADIUS = 12;
+    const PANEL_RADIUS = 16;
+    const BASE_CELL_SIZE = 72;
+
+    // ================================================================
+    // CONSTANTS — Review highlight colors
+    // ================================================================
+
+    const REVIEW_CORRECT_FILL = 'rgba(34,197,94,0.14)';
+    const REVIEW_CORRECT_BORDER = '#22C55E';
+
+    const REVIEW_MISSED_FILL = 'rgba(245,158,11,0.16)';
+    const REVIEW_MISSED_BORDER = '#F59E0B';
+
+    const REVIEW_WRONG_FILL = 'rgba(239,68,68,0.14)';
+    const REVIEW_WRONG_BORDER = '#EF4444';
+
+    // ================================================================
+    // UTILITY FUNCTIONS
+    // ================================================================
+
+    // Clamp a number within [lo, hi]
+    function clamp(v, lo, hi) {
+      return Math.max(lo, Math.min(hi, v));
+    }
+
+    // Fisher-Yates shuffle using provided rng
+    function shuffleInPlace(arr, rng) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(rng() * (i + 1));
+        const tmp = arr[i];
+        arr[i] = arr[j];
+        arr[j] = tmp;
+      }
+    }
+
+    // Popcount for 16-bit mask
+    function popcount16(x) {
+      x = x & 0xFFFF;
+      let c = 0;
+      while (x) { c += x & 1; x >>= 1; }
+      return c;
+    }
+
+    // Draw a rounded rectangle path
+    function roundRect(ctx, x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.arcTo(x + w, y, x + w, y + r, r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+      ctx.lineTo(x + r, y + h);
+      ctx.arcTo(x, y + h, x, y + h - r, r);
+      ctx.lineTo(x, y + r);
+      ctx.arcTo(x, y, x + r, y, r);
+      ctx.closePath();
+    }
+
+    // ================================================================
+    // SEEDED PRNG — xorshift32
+    // ================================================================
+
+    function xorshift32(seed) {
+      let x = seed >>> 0;
+      if (x === 0) x = 1; // avoid zero state
+      return function() {
+        x ^= x << 13;
+        x ^= x >>> 17;
+        x ^= x << 5;
+        return (x >>> 0) / 4294967296;
+      };
+    }
+
+    // Generate a fresh random seed
+    function freshSeed() {
+      return (Date.now() ^ (Math.random() * 0xFFFFFFFF)) >>> 0;
+    }
+
+    // ================================================================
+    // CHALLENGE GENERATION — Config derivation
+    // ================================================================
+
+    // Map complexity (1-100) to grid config
+    function deriveConfig(complexity) {
+      if (complexity <= 20) {
+        return { cols: 4, rows: 3, cellCount: 12, foreignCount: 2, poolType: 'easy' };
+      }
+      if (complexity <= 40) {
+        return { cols: 4, rows: 3, cellCount: 12, foreignCount: 3, poolType: 'easy' };
+      }
+      if (complexity <= 60) {
+        return { cols: 4, rows: 3, cellCount: 12, foreignCount: 3, poolType: 'medium' };
+      }
+      if (complexity <= 75) {
+        return { cols: 4, rows: 4, cellCount: 16, foreignCount: 3, poolType: 'medium' };
+      }
+      // 76-100: hard
+      return { cols: 4, rows: 4, cellCount: 16, foreignCount: 4, poolType: 'hard' };
+    }
+
+    // ================================================================
+    // CHALLENGE GENERATION — Foreign position placement
+    // ================================================================
+
+    // Check fairness: foreign cells should not all be in one row or column
+    function isLayoutFair(positions, cols, rows) {
+      if (positions.length <= 1) return true;
+      const rowCounts = new Map();
+      const colCounts = new Map();
+      for (const pos of positions) {
+        const row = Math.floor(pos / cols);
+        const col = pos % cols;
+        rowCounts.set(row, (rowCounts.get(row) || 0) + 1);
+        colCounts.set(col, (colCounts.get(col) || 0) + 1);
+      }
+      const sameRow = [...rowCounts.values()].some(v => v === positions.length);
+      const sameCol = [...colCounts.values()].some(v => v === positions.length);
+      return !sameRow && !sameCol;
+    }
+
+    // Choose fair random positions for foreign characters
+    function chooseForeignPositions(cellCount, foreignCount, cols, rows, rng) {
+      const positions = Array.from({ length: cellCount }, (_, i) => i);
+      let chosen = positions.slice(0, foreignCount);
+      for (let attempt = 0; attempt < 8; attempt++) {
+        shuffleInPlace(positions, rng);
+        const candidate = positions.slice(0, foreignCount);
+        chosen = candidate;
+        if (isLayoutFair(candidate, cols, rows)) break;
+      }
+      return chosen;
+    }
+
+    // Build a 16-bit bitmask from position array
+    function buildForeignMask(positions) {
+      let mask = 0;
+      for (const pos of positions) mask |= (1 << pos);
+      return mask & 0xFFFF;
+    }
+
+    // ================================================================
+    // CHALLENGE GENERATION — Symbol selection
+    // ================================================================
+
+    // Sample foreign symbols from the appropriate pool
+    function sampleForeignSymbols(pool, count, rng) {
+      const copy = [...pool];
+      shuffleInPlace(copy, rng);
+      return copy.slice(0, count);
+    }
+
+    // Sample Russian symbols with controlled frequency
+    function sampleRussianSymbols(poolType, count, rng) {
+      const result = [];
+      const used = new Map();
+
+      // In hard mode, ensure >= 30% of Russian cells are lookalikes
+      let lookalikeQuota = 0;
+      if (poolType === 'hard') {
+        lookalikeQuota = Math.max(1, Math.floor(count * 0.3));
+      }
+
+      if (lookalikeQuota > 0) {
+        const lookalikes = [...RUSSIAN_LOOKALIKES];
+        shuffleInPlace(lookalikes, rng);
+        for (const ch of lookalikes) {
+          if (result.length >= lookalikeQuota) break;
+          result.push(ch);
+          used.set(ch, (used.get(ch) || 0) + 1);
+        }
+      }
+
+      // Fill remaining slots with general Russian chars
+      let attempts = 0;
+      while (result.length < count && attempts < 500) {
+        attempts++;
+        const ch = RUSSIAN_UPPER[Math.floor(rng() * RUSSIAN_UPPER.length)];
+        // Reduce frequency of rare letters
+        if (RUSSIAN_RARE.has(ch) && rng() > 0.4) continue;
+        // No more than 2 of the same char
+        if ((used.get(ch) || 0) >= 2) continue;
+        result.push(ch);
+        used.set(ch, (used.get(ch) || 0) + 1);
+      }
+
+      // Failsafe: fill any remaining slots
+      while (result.length < count) {
+        result.push(RUSSIAN_UPPER[Math.floor(rng() * RUSSIAN_UPPER.length)]);
+      }
+
+      return result;
+    }
+
+    // Merge foreign and Russian symbols into final cell array
+    function mergeSymbols(cellCount, foreignMask, foreignSymbols, russianSymbols) {
+      const symbols = new Array(cellCount);
+      let fi = 0;
+      let ri = 0;
+      for (let i = 0; i < cellCount; i++) {
+        if (foreignMask & (1 << i)) {
+          symbols[i] = foreignSymbols[fi++];
+        } else {
+          symbols[i] = russianSymbols[ri++];
+        }
+      }
+      return symbols;
+    }
+
+    // ================================================================
+    // CHALLENGE GENERATION — Render hints
+    // ================================================================
+
+    // Generate per-cell visual variation hints
+    function generateRenderHints(symbols, foreignMask, poolType, complexity, rng) {
+      const intensity = (complexity - 1) / 99;
+      const maxRotTenth = Math.round(5 + (60 - 5) * intensity);
+
+      return symbols.map(function(symbol, index) {
+        const isForeign = !!(foreignMask & (1 << index));
+
+        // Font variant: 0-3 for Russian/normal, 4-6 for hard foreign cue
+        let fontVariant;
+        if (poolType === 'hard' && isForeign) {
+          fontVariant = 4 + Math.floor(rng() * 3);
+        } else {
+          fontVariant = Math.floor(rng() * 4);
+        }
+
+        // Color variant: 0-3 normal, 4-7 shifted for hard foreign
+        let colorVariant;
+        if (poolType === 'hard' && isForeign) {
+          colorVariant = 4 + Math.floor(rng() * 4);
+        } else {
+          colorVariant = Math.floor(rng() * 4);
+        }
+
+        // Baseline shift: slight offset for hard foreign, small jitter otherwise
+        let baselineShiftPx;
+        if (poolType === 'hard' && isForeign) {
+          const shift = 1 + Math.floor(rng() * 3);
+          baselineShiftPx = rng() < 0.5 ? -shift : shift;
+        } else {
+          baselineShiftPx = -1 + Math.floor(rng() * 3);
+        }
+
+        return {
+          index: index,
+          symbol: symbol,
+          kind: isForeign ? 'foreign' : 'russian',
+          fontVariant: fontVariant,
+          rotationTenth: Math.floor(rng() * (maxRotTenth * 2 + 1)) - maxRotTenth,
+          sizeDeltaPx: -2 + Math.floor(rng() * 7),
+          colorVariant: colorVariant,
+          baselineShiftPx: baselineShiftPx
+        };
+      });
+    }
+
+    // ================================================================
+    // SCORING — Timing penalty
+    // ================================================================
+
+    function timingPenalty(poolType, elapsedMs) {
+      if (poolType === 'hard') {
+        if (elapsedMs < 900) return 20;
+        if (elapsedMs < 1400) return 8;
+        if (elapsedMs > 45000) return 10;
+        if (elapsedMs > 20000) return 5;
+        return 0;
+      }
+      if (elapsedMs < 700) return 25;
+      if (elapsedMs < 1200) return 10;
+      if (elapsedMs > 45000) return 10;
+      if (elapsedMs > 20000) return 5;
+      return 0;
+    }
+
+    // ================================================================
+    // SCORING — Full score computation
+    // ================================================================
+
+    function scoreSelection(cellCount, foreignMask, selectedMask, poolType, elapsedMs) {
+      const validMask = cellCount < 16 ? ((1 << cellCount) - 1) : 0xFFFF;
+      const a = foreignMask & validMask;
+      const s = selectedMask & validMask;
+
+      const tp = popcount16(a & s);
+      const fp = popcount16((~a) & s & validMask);
+      const fn = popcount16(a & (~s) & validMask);
+      const total = popcount16(a);
+
+      // Edge case: no foreign chars at all
+      if (total === 0) {
+        return { confidence: 0, tp: tp, fp: fp, fn: fn, total: total, precision: 0, recall: 0 };
+      }
+
+      // Perfect answer
+      if (tp === total && fp === 0) {
+        let score = 80 - timingPenalty(poolType, elapsedMs);
+        score = Math.max(55, Math.min(80, score));
+        return { confidence: score, tp: tp, fp: fp, fn: fn, total: total, precision: 1, recall: 1 };
+      }
+
+      // Nothing selected
+      if (s === 0) {
+        return { confidence: 0, tp: tp, fp: fp, fn: fn, total: total, precision: 0, recall: 0 };
+      }
+
+      // Weighted scoring
+      const precision = tp / Math.max(tp + fp, 1);
+      const recall = tp / Math.max(tp + fn, 1);
+      const base = 80 * (0.65 * recall + 0.35 * precision);
+      const penalty = fp * 12 + fn * 6;
+
+      let score = Math.floor(base - penalty);
+      score -= timingPenalty(poolType, elapsedMs);
+
+      // If no correct picks but some wrong, cap at 10
+      if (tp === 0 && fp > 0 && score > 10) score = 10;
+      score = Math.max(0, Math.min(79, score));
+
+      return { confidence: score, tp: tp, fp: fp, fn: fn, total: total, precision: precision, recall: recall };
+    }
+
+    // Classify a cell after submission
+    function classifyCell(index, foreignMask, selectedMask) {
+      const isForeign = !!(foreignMask & (1 << index));
+      const isSelected = !!(selectedMask & (1 << index));
+      if (isForeign && isSelected) return 'correct';
+      if (isForeign && !isSelected) return 'missed';
+      if (!isForeign && isSelected) return 'wrong';
+      return 'neutral';
+    }
+
+    // Determine status text tone class
+    function pickStatusTone(result) {
+      if (result.tp === result.total && result.fp === 0) return 'is-success';
+      if (result.tp > 0) return 'is-warning';
+      return 'is-error';
+    }
+
+    // ================================================================
+    // FONT AND COLOR MAPPING HELPERS
+    // ================================================================
+
+    function pickFontFamily(fontVariant) {
+      if (fontVariant >= 4) {
+        return FOREIGN_HARD_FONTS[(fontVariant - 4) % FOREIGN_HARD_FONTS.length];
+      }
+      return RUSSIAN_FONTS[fontVariant % RUSSIAN_FONTS.length];
+    }
+
+    function pickTextColor(colorVariant, isSelected) {
+      if (isSelected) return '#1A56DB';
+      if (colorVariant >= 4) return SHIFTED_TEXT_COLORS[(colorVariant - 4) % SHIFTED_TEXT_COLORS.length];
+      return TEXT_COLORS[colorVariant % TEXT_COLORS.length];
+    }
+
+    // ================================================================
+    // MAIN APPLICATION CLASS
+    // ================================================================
+
+    class AlphabetCaptchaDemo {
+      constructor() {
+        // State
+        this.challenge = null;
+        this.selectedMask = 0;
+        this.isLocked = false;
+        this.hoverIndex = -1;
+        this.cellRects = [];
+        this.renderStartedAt = 0;
+        this.reviewResult = null;
+
+        // Pulsing animation state for missed cells
+        this.pulsePhase = 0;
+        this.pulseAnimId = null;
+
+        // DOM references
+        this.canvas = null;
+        this.ctx = null;
+        this.confirmButton = null;
+        this.resetButton = null;
+        this.newTaskButton = null;
+        this.refreshButton = null;
+        this.range = null;
+        this.rangeValue = null;
+        this.statusEl = null;
+      }
+
+      // Initialize DOM references
+      initDom() {
+        this.canvas = document.getElementById('captchaCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.confirmButton = document.getElementById('confirmBtn');
+        this.resetButton = document.getElementById('resetBtn');
+        this.newTaskButton = document.getElementById('newTaskBtn');
+        this.refreshButton = document.getElementById('refreshBtn');
+        this.range = document.getElementById('complexityRange');
+        this.rangeValue = document.getElementById('complexityValue');
+        this.statusEl = document.getElementById('status');
+      }
+
+      // Bind all event listeners
+      bindEvents() {
+        // Canvas click
+        this.canvas.addEventListener('click', (e) => this.onCanvasClick(e));
+
+        // Canvas hover
+        this.canvas.addEventListener('mousemove', (e) => this.onCanvasMouseMove(e));
+        this.canvas.addEventListener('mouseleave', () => {
+          if (this.hoverIndex !== -1) {
+            this.hoverIndex = -1;
+            this.render();
+          }
+        });
+
+        // Touch support
+        this.canvas.addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          const t = e.touches[0];
+          const r = this.canvas.getBoundingClientRect();
+          this.handleClick(t.clientX - r.left, t.clientY - r.top);
+        }, { passive: false });
+
+        // Confirm button
+        this.confirmButton.addEventListener('click', () => this.onConfirm());
+
+        // Reset button
+        this.resetButton.addEventListener('click', () => this.onReset());
+
+        // New task button
+        this.newTaskButton.addEventListener('click', () => this.createNewChallenge());
+
+        // Refresh button
+        this.refreshButton.addEventListener('click', () => this.createNewChallenge());
+
+        // Complexity slider — update label in real time
+        this.range.addEventListener('input', () => this.updateComplexityLabel());
+      }
+
+      // Update the displayed complexity value
+      updateComplexityLabel() {
+        this.rangeValue.textContent = this.range.value;
+      }
+
+      // ================================================================
+      // CHALLENGE GENERATION
+      // ================================================================
+
+      generateChallenge(complexity) {
+        complexity = clamp(Number(complexity) || 1, 1, 100);
+        const config = deriveConfig(complexity);
+        const seed = freshSeed();
+        const rng = xorshift32(seed);
+
+        // Choose foreign positions with fairness check
+        const foreignPositions = chooseForeignPositions(
+          config.cellCount, config.foreignCount, config.cols, config.rows, rng
+        );
+        const foreignMask = buildForeignMask(foreignPositions);
+
+        // Select the right pool
+        let pool;
+        if (config.poolType === 'easy') pool = FOREIGN_EASY;
+        else if (config.poolType === 'medium') pool = FOREIGN_MEDIUM;
+        else pool = FOREIGN_HARD;
+
+        // Pick symbols
+        const foreignSymbols = sampleForeignSymbols(pool, config.foreignCount, rng);
+        const russianCount = config.cellCount - config.foreignCount;
+        const russianSymbols = sampleRussianSymbols(config.poolType, russianCount, rng);
+
+        // Merge into cell array
+        const symbols = mergeSymbols(config.cellCount, foreignMask, foreignSymbols, russianSymbols);
+
+        // Generate per-cell render hints
+        const cells = generateRenderHints(symbols, foreignMask, config.poolType, complexity, rng);
+
+        // Seeds for noise
+        const noiseSeed = freshSeed();
+        const backgroundSeed = freshSeed();
+
+        return {
+          complexity: complexity,
+          cellCount: config.cellCount,
+          cols: config.cols,
+          rows: config.rows,
+          poolType: config.poolType,
+          foreignCount: config.foreignCount,
+          foreignMask: foreignMask,
+          cells: cells,
+          noiseSeed: noiseSeed,
+          backgroundSeed: backgroundSeed,
+          renderFlags: {
+            backgroundNoise: true,
+            foregroundLines: true,
+            fontJitter: true,
+            rotation: true,
+            hardCues: config.poolType === 'hard'
+          }
+        };
+      }
+
+      // ================================================================
+      // CHALLENGE LIFECYCLE
+      // ================================================================
+
+      createNewChallenge() {
+        // Stop any pulse animation
+        this.stopPulse();
+
+        const complexity = clamp(Number(this.range.value), 1, 100);
+        this.challenge = this.generateChallenge(complexity);
+        this.selectedMask = 0;
+        this.isLocked = false;
+        this.hoverIndex = -1;
+        this.reviewResult = null;
+        this.renderStartedAt = performance.now();
+
+        // Update UI buttons
+        this.confirmButton.disabled = false;
+        this.resetButton.disabled = false;
+        this.newTaskButton.hidden = true;
+        this.statusEl.textContent = '';
+        this.statusEl.className = 'status';
+
+        this.setupCanvas();
+        this.render();
+      }
+
+      // ================================================================
+      // CANVAS SETUP
+      // ================================================================
+
+      setupCanvas() {
+        if (!this.challenge) return;
+        const dpr = window.devicePixelRatio || 1;
+        const co = this.challenge.cols;
+        const ro = this.challenge.rows;
+
+        // Compute CSS dimensions
+        const cssWidth = OUTER_PADDING * 2 + co * BASE_CELL_SIZE + (co - 1) * CELL_GAP;
+        const cssHeight = OUTER_PADDING * 2 + ro * BASE_CELL_SIZE + (ro - 1) * CELL_GAP;
+
+        this.canvas.style.width = cssWidth + 'px';
+        this.canvas.style.height = cssHeight + 'px';
+        this.canvas.width = Math.floor(cssWidth * dpr);
+        this.canvas.height = Math.floor(cssHeight * dpr);
+        this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        // Pre-compute cell rectangles
+        this.cellRects = [];
+        const cellW = (cssWidth - OUTER_PADDING * 2 - CELL_GAP * (co - 1)) / co;
+        const cellH = (cssHeight - OUTER_PADDING * 2 - CELL_GAP * (ro - 1)) / ro;
+        for (let i = 0; i < this.challenge.cellCount; i++) {
+          const r = Math.floor(i / co);
+          const c = i % co;
+          this.cellRects.push({
+            x: OUTER_PADDING + c * (cellW + CELL_GAP),
+            y: OUTER_PADDING + r * (cellH + CELL_GAP),
+            w: cellW,
+            h: cellH
+          });
+        }
+      }
+
+      // ================================================================
+      // RENDERING — Main entry
+      // ================================================================
+
+      render() {
+        const ch = this.challenge;
+        if (!ch) return;
+        const c = this.ctx;
+        const w = parseFloat(this.canvas.style.width);
+        const h = parseFloat(this.canvas.style.height);
+
+        // 1. Clear
+        c.clearRect(0, 0, w, h);
+
+        // 2. Panel background
+        c.fillStyle = '#F0F4F8';
+        roundRect(c, 0, 0, w, h, PANEL_RADIUS);
+        c.fill();
+
+        // 3. Background noise speckles
+        if (ch.renderFlags.backgroundNoise) {
+          this.drawBackgroundNoise(ch, w, h);
+        }
+
+        // 4. Cells
+        this.drawCells(ch);
+
+        // 5. Symbols
+        this.drawSymbols(ch);
+
+        // 6. Foreground lines
+        if (ch.renderFlags.foregroundLines) {
+          this.drawForegroundLines(ch, w, h);
+        }
+
+        // 7. Hover overlay (only when not locked)
+        if (this.hoverIndex >= 0 && this.hoverIndex < this.cellRects.length && !this.isLocked) {
+          const rect = this.cellRects[this.hoverIndex];
+          c.strokeStyle = 'rgba(59,130,246,0.35)';
+          c.lineWidth = 2;
+          roundRect(c, rect.x, rect.y, rect.w, rect.h, CELL_RADIUS);
+          c.stroke();
+        }
+      }
+
+      // ================================================================
+      // RENDERING — Background noise
+      // ================================================================
+
+      drawBackgroundNoise(ch, w, h) {
+        const c = this.ctx;
+        const rand = xorshift32(ch.backgroundSeed);
+        const count = 10 + Math.floor(rand() * 30);
+        for (let i = 0; i < count; i++) {
+          const x = rand() * w;
+          const y = rand() * h;
+          const r = 0.5 + rand() * 1.3;
+          const a = 0.03 + rand() * 0.07;
+          c.fillStyle = 'rgba(30,40,60,' + a + ')';
+          c.beginPath();
+          c.arc(x, y, r, 0, Math.PI * 2);
+          c.fill();
+        }
+      }
+
+      // ================================================================
+      // RENDERING — Cells
+      // ================================================================
+
+      drawCells(ch) {
+        const c = this.ctx;
+        for (let i = 0; i < ch.cellCount; i++) {
+          const rect = this.cellRects[i];
+          const state = this.getCellVisualState(i);
+
+          // Determine fill and stroke based on state
+          let fillColor, strokeColor, strokeWidth;
+
+          switch (state) {
+            case 'selected':
+              fillColor = 'rgba(59,130,246,0.12)';
+              strokeColor = '#3B82F6';
+              strokeWidth = 2.5;
+              break;
+            case 'correct':
+              fillColor = REVIEW_CORRECT_FILL;
+              strokeColor = REVIEW_CORRECT_BORDER;
+              strokeWidth = 2.5;
+              break;
+            case 'missed':
+              fillColor = REVIEW_MISSED_FILL;
+              strokeColor = REVIEW_MISSED_BORDER;
+              strokeWidth = 2.5;
+              break;
+            case 'wrong':
+              fillColor = REVIEW_WRONG_FILL;
+              strokeColor = REVIEW_WRONG_BORDER;
+              strokeWidth = 2.5;
+              break;
+            default: // 'default' or 'neutral'
+              fillColor = (i % 2 === 0) ? '#FFFFFF' : '#F7FAFC';
+              strokeColor = '#E2E8F0';
+              strokeWidth = 1;
+          }
+
+          // Apply pulse effect for missed cells
+          if (state === 'missed') {
+            const alpha = 0.16 + 0.1 * Math.sin(this.pulsePhase);
+            fillColor = 'rgba(245,158,11,' + alpha.toFixed(3) + ')';
+          }
+
+          // Fill cell
+          c.fillStyle = fillColor;
+          roundRect(c, rect.x, rect.y, rect.w, rect.h, CELL_RADIUS);
+          c.fill();
+
+          // Stroke cell
+          c.strokeStyle = strokeColor;
+          c.lineWidth = strokeWidth;
+          roundRect(c, rect.x, rect.y, rect.w, rect.h, CELL_RADIUS);
+          c.stroke();
+
+          // Draw checkmark indicator for selected cells (including correct/wrong in review)
+          const isSelected = !!(this.selectedMask & (1 << i));
+          if (isSelected) {
+            this.drawCheckmark(rect, state);
+          }
+
+          // Draw small indicator dot for missed cells in review
+          if (state === 'missed') {
+            this.drawMissedIndicator(rect);
+          }
+        }
+      }
+
+      // Draw the small checkmark circle in the top-right corner
+      drawCheckmark(rect, state) {
+        const c = this.ctx;
+        const cx = rect.x + rect.w - 10;
+        const cy = rect.y + 10;
+
+        // Circle color depends on state
+        let circleColor;
+        switch (state) {
+          case 'correct': circleColor = REVIEW_CORRECT_BORDER; break;
+          case 'wrong': circleColor = REVIEW_WRONG_BORDER; break;
+          default: circleColor = '#3B82F6';
+        }
+
+        c.fillStyle = circleColor;
+        c.beginPath();
+        c.arc(cx, cy, 6, 0, Math.PI * 2);
+        c.fill();
+
+        // White checkmark
+        c.strokeStyle = '#FFF';
+        c.lineWidth = 1.5;
+        c.lineCap = 'round';
+        c.lineJoin = 'round';
+        c.beginPath();
+        c.moveTo(cx - 3, cy);
+        c.lineTo(cx - 0.5, cy + 2.5);
+        c.lineTo(cx + 3.5, cy - 2);
+        c.stroke();
+        c.lineCap = 'butt';
+        c.lineJoin = 'miter';
+      }
+
+      // Draw small indicator for missed foreign cells
+      drawMissedIndicator(rect) {
+        const c = this.ctx;
+        const cx = rect.x + rect.w - 10;
+        const cy = rect.y + 10;
+
+        // Small exclamation-style circle
+        c.fillStyle = REVIEW_MISSED_BORDER;
+        c.beginPath();
+        c.arc(cx, cy, 6, 0, Math.PI * 2);
+        c.fill();
+
+        // Exclamation mark
+        c.fillStyle = '#FFF';
+        c.font = 'bold 10px system-ui, sans-serif';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText('!', cx, cy);
+      }
+
+      // Determine visual state for a given cell
+      getCellVisualState(index) {
+        const isSelected = !!(this.selectedMask & (1 << index));
+
+        if (!this.isLocked || !this.reviewResult) {
+          return isSelected ? 'selected' : 'default';
+        }
+
+        return classifyCell(index, this.challenge.foreignMask, this.selectedMask);
+      }
+
+      // ================================================================
+      // RENDERING — Symbols
+      // ================================================================
+
+      drawSymbols(ch) {
+        const c = this.ctx;
+        for (const cell of ch.cells) {
+          const rect = this.cellRects[cell.index];
+          if (!rect) continue;
+          const isSelected = !!(this.selectedMask & (1 << cell.index));
+
+          c.save();
+          c.translate(rect.x + rect.w / 2, rect.y + rect.h / 2);
+
+          // Apply rotation
+          if (ch.renderFlags.rotation) {
+            c.rotate(cell.rotationTenth / 10 * Math.PI / 180);
+          }
+
+          // Font size
+          const baseFontSize = ch.cellCount <= 12 ? 34 : 30;
+          const fontSize = baseFontSize + cell.sizeDeltaPx;
+
+          // Font family
+          const fontFamily = pickFontFamily(cell.fontVariant);
+          const fontWeight = isSelected ? 700 : 600;
+          c.font = fontWeight + ' ' + fontSize + 'px ' + fontFamily;
+          c.textAlign = 'center';
+          c.textBaseline = 'middle';
+
+          // Color
+          c.fillStyle = pickTextColor(cell.colorVariant, isSelected);
+
+          // Stroke jitter for certain cells
+          if (ch.renderFlags.fontJitter && cell.index % 3 === 0) {
+            c.lineWidth = 0.6;
+            c.strokeStyle = 'rgba(20,30,45,0.08)';
+            c.strokeText(cell.symbol, 0, cell.baselineShiftPx);
+          }
+
+          c.fillText(cell.symbol, 0, cell.baselineShiftPx);
+          c.restore();
+        }
+      }
+
+      // ================================================================
+      // RENDERING — Foreground lines
+      // ================================================================
+
+      drawForegroundLines(ch, w, h) {
+        const c = this.ctx;
+        const rand = xorshift32(ch.noiseSeed);
+        const count = 1 + Math.floor(rand() * 4);
+        for (let i = 0; i < count; i++) {
+          c.strokeStyle = 'rgba(30,40,60,' + (0.04 + rand() * 0.06) + ')';
+          c.lineWidth = 0.5 + rand() * 0.7;
+          c.beginPath();
+          c.moveTo(rand() * w, rand() * h);
+          c.lineTo(rand() * w, rand() * h);
+          c.stroke();
+        }
+      }
+
+      // ================================================================
+      // HIT TESTING
+      // ================================================================
+
+      hitTest(x, y) {
+        for (let i = 0; i < this.cellRects.length; i++) {
+          const r = this.cellRects[i];
+          if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) {
+            return i;
+          }
+        }
+        return -1;
+      }
+
+      // ================================================================
+      // EVENT HANDLERS
+      // ================================================================
+
+      onCanvasClick(e) {
+        const r = this.canvas.getBoundingClientRect();
+        this.handleClick(e.clientX - r.left, e.clientY - r.top);
+      }
+
+      onCanvasMouseMove(e) {
+        if (this.isLocked || !this.challenge) return;
+        const r = this.canvas.getBoundingClientRect();
+        const newHover = this.hitTest(e.clientX - r.left, e.clientY - r.top);
+        if (newHover !== this.hoverIndex) {
+          this.hoverIndex = newHover;
+          this.canvas.style.cursor = newHover >= 0 ? 'pointer' : 'default';
+          this.render();
+        }
+      }
+
+      handleClick(x, y) {
+        if (this.isLocked || !this.challenge) return;
+        const index = this.hitTest(x, y);
+        if (index < 0) return;
+        this.toggleCell(index);
+      }
+
+      toggleCell(index) {
+        const bit = 1 << index;
+        if (this.selectedMask & bit) {
+          this.selectedMask &= ~bit;
+        } else {
+          this.selectedMask |= bit;
+        }
+        this.render();
+      }
+
+      // ================================================================
+      // CONFIRM / RESET / NEW TASK
+      // ================================================================
+
+      onConfirm() {
+        if (!this.challenge || this.isLocked) return;
+
+        const elapsedMs = Math.max(0, Math.floor(performance.now() - this.renderStartedAt));
+        const result = scoreSelection(
+          this.challenge.cellCount,
+          this.challenge.foreignMask,
+          this.selectedMask,
+          this.challenge.poolType,
+          elapsedMs
+        );
+
+        this.reviewResult = Object.assign({}, result, { elapsedMs: elapsedMs });
+        this.isLocked = true;
+        this.hoverIndex = -1;
+        this.canvas.style.cursor = 'default';
+        this.confirmButton.disabled = true;
+        this.resetButton.disabled = true;
+        this.newTaskButton.hidden = false;
+
+        // Build status text
+        let statusText = '\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442: ' +
+          result.tp + '/' + result.total + ' \u043F\u0440\u0430\u0432\u0438\u043B\u044C\u043D\u043E (confidence: ' +
+          result.confidence + '%)';
+
+        // Optional details line
+        if (result.fp > 0 || result.fn > 0) {
+          const parts = [];
+          if (result.fp > 0) parts.push('\u043B\u0438\u0448\u043D\u0438\u0445: ' + result.fp);
+          if (result.fn > 0) parts.push('\u043F\u0440\u043E\u043F\u0443\u0449\u0435\u043D\u043E: ' + result.fn);
+          statusText += '\n' + parts.join(', ');
+        }
+
+        this.statusEl.textContent = statusText;
+        this.statusEl.style.whiteSpace = 'pre-line';
+        this.statusEl.className = 'status ' + pickStatusTone(result);
+
+        // Start pulse animation for missed cells
+        this.startPulse();
+
+        this.render();
+      }
+
+      onReset() {
+        if (this.isLocked || !this.challenge) return;
+        this.selectedMask = 0;
+        this.render();
+      }
+
+      // ================================================================
+      // PULSE ANIMATION FOR MISSED CELLS
+      // ================================================================
+
+      startPulse() {
+        this.pulsePhase = 0;
+        const self = this;
+        function tick() {
+          self.pulsePhase += 0.06;
+          self.render();
+          self.pulseAnimId = requestAnimationFrame(tick);
+        }
+        this.pulseAnimId = requestAnimationFrame(tick);
+      }
+
+      stopPulse() {
+        if (this.pulseAnimId !== null) {
+          cancelAnimationFrame(this.pulseAnimId);
+          this.pulseAnimId = null;
+        }
+        this.pulsePhase = 0;
+      }
+
+      // ================================================================
+      // BOOT
+      // ================================================================
+
+      static run() {
+        const app = new AlphabetCaptchaDemo();
+        app.initDom();
+        app.bindEvents();
+        app.updateComplexityLabel();
+        app.createNewChallenge();
+      }
+    }
+
+    // Start the application
+    AlphabetCaptchaDemo.run();
+  </script>
+
+<!-- Iframe-to-parent mouse/click event forwarder for behavioral analysis -->
+<script>
+(function () {
+  // Only activate when running inside an iframe
+  if (window.parent === window) return;
+
+  var lastMoveAt = 0;
+  var MOVE_INTERVAL_MS = 40; // Throttle to ~25 fps
+
+  function postToParent(type, e) {
+    window.parent.postMessage({
+      type: type,
+      clientX: e.clientX,
+      clientY: e.clientY,
+      timestamp: performance.now()
+    }, '*');
+  }
+
+  // Forward throttled mousemove events
+  document.addEventListener('mousemove', function (e) {
+    var now = performance.now();
+    if (now - lastMoveAt < MOVE_INTERVAL_MS) return;
+    lastMoveAt = now;
+    postToParent('captcha:mouseMove', e);
+  }, { passive: true });
+
+  // Forward click events (capture phase for robustness)
+  document.addEventListener('click', function (e) {
+    postToParent('captcha:click', e);
+  }, true);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1494 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Captcha v3 — PoW + Поведенческий анализ</title>
+  <style>
+    /* ================================================================
+       CSS RESET & BASE
+       ================================================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      background: #0F1117;
+      color: #C8C8CC;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                   "Helvetica Neue", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      min-height: 100vh;
+    }
+
+    /* ================================================================
+       LAYOUT SHELL
+       ================================================================ */
+    .shell {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    /* ================================================================
+       TOP BAR
+       ================================================================ */
+    .top-bar {
+      background: #161822;
+      border-bottom: 1px solid #23263A;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      height: 56px;
+      flex-shrink: 0;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .logo svg {
+      width: 28px;
+      height: 28px;
+    }
+
+    .logo-text {
+      font-size: 15px;
+      font-weight: 700;
+      color: #E4E4E8;
+      letter-spacing: -0.02em;
+    }
+
+    .logo-tag {
+      font-size: 10px;
+      font-weight: 600;
+      color: #0F1117;
+      background: #4F98A3;
+      padding: 2px 6px;
+      border-radius: 4px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    /* ================================================================
+       TAB NAVIGATION
+       ================================================================ */
+    .tabs {
+      display: flex;
+      gap: 2px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .tabs::-webkit-scrollbar { display: none; }
+
+    .tab-btn {
+      background: none;
+      border: none;
+      color: #7A7B85;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 8px 14px;
+      cursor: pointer;
+      white-space: nowrap;
+      border-radius: 8px;
+      transition: color 0.2s, background 0.2s;
+    }
+
+    .tab-btn:hover {
+      color: #B8B9C1;
+      background: rgba(255,255,255,0.04);
+    }
+
+    .tab-btn.active {
+      color: #E4E4E8;
+      background: rgba(79,152,163,0.15);
+    }
+
+    /* ================================================================
+       CONTROLS BAR (PoW toggle + difficulty)
+       ================================================================ */
+    .controls-bar {
+      background: #161822;
+      border-bottom: 1px solid #23263A;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      height: 48px;
+      flex-shrink: 0;
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .control-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: #7A7B85;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    /* Toggle switch */
+    .toggle {
+      position: relative;
+      width: 38px;
+      height: 22px;
+      cursor: pointer;
+    }
+
+    .toggle input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+      position: absolute;
+    }
+
+    .toggle-track {
+      position: absolute;
+      inset: 0;
+      background: #2A2D3E;
+      border-radius: 11px;
+      transition: background 0.25s;
+    }
+
+    .toggle input:checked + .toggle-track {
+      background: #4F98A3;
+    }
+
+    .toggle-thumb {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 16px;
+      height: 16px;
+      background: #E4E4E8;
+      border-radius: 50%;
+      transition: transform 0.25s;
+      pointer-events: none;
+    }
+
+    .toggle input:checked ~ .toggle-thumb {
+      transform: translateX(16px);
+    }
+
+    /* Difficulty selector */
+    .diff-selector {
+      display: flex;
+      gap: 2px;
+      background: #1E2030;
+      border-radius: 6px;
+      padding: 2px;
+    }
+
+    .diff-btn {
+      background: none;
+      border: none;
+      color: #7A7B85;
+      font-size: 11px;
+      font-weight: 500;
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .diff-btn:hover { color: #B8B9C1; }
+
+    .diff-btn.active {
+      background: #2A2D3E;
+      color: #E4E4E8;
+    }
+
+    .separator {
+      width: 1px;
+      height: 24px;
+      background: #23263A;
+      flex-shrink: 0;
+    }
+
+    /* Refresh button */
+    .refresh-btn {
+      background: #1E2030;
+      border: 1px solid #2A2D3E;
+      color: #B8B9C1;
+      font-size: 12px;
+      font-weight: 500;
+      padding: 5px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .refresh-btn:hover {
+      background: #2A2D3E;
+      color: #E4E4E8;
+      border-color: #363A50;
+    }
+
+    .refresh-btn svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    /* ================================================================
+       MAIN CONTENT AREA
+       ================================================================ */
+    .main-content {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    .captcha-area {
+      flex: 1;
+      padding: 24px;
+      overflow-y: auto;
+      position: relative;
+    }
+
+    /* ================================================================
+       TAB CONTENT PANELS
+       ================================================================ */
+    .tab-panel {
+      display: none;
+      width: 100%;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .tab-panel.active { display: block; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Grid for "All 3" tab */
+    .captcha-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 20px;
+    }
+
+    /* Single captcha frame */
+    .captcha-card {
+      background: #161822;
+      border: 1px solid #23263A;
+      border-radius: 12px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .captcha-card-header {
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid #23263A;
+    }
+
+    .captcha-card-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .dot-1 { background: #E45A5A; }
+    .dot-2 { background: #E4B95A; }
+    .dot-3 { background: #5AE47A; }
+
+    .captcha-card-title {
+      font-size: 12px;
+      font-weight: 500;
+      color: #7A7B85;
+    }
+
+    .captcha-card iframe {
+      width: 100%;
+      height: 520px;
+      border: none;
+      display: block;
+      background: #fff;
+    }
+
+    /* Single captcha view (centered) */
+    .single-view {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .single-view .captcha-card iframe {
+      height: 580px;
+    }
+
+    /* ================================================================
+       POW OVERLAY
+       ================================================================ */
+    .pow-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(15, 17, 23, 0.92);
+      backdrop-filter: blur(8px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.35s;
+    }
+
+    .pow-overlay.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .pow-icon {
+      width: 48px;
+      height: 48px;
+      border: 3px solid #2A2D3E;
+      border-top-color: #4F98A3;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .pow-label {
+      font-size: 15px;
+      font-weight: 500;
+      color: #E4E4E8;
+    }
+
+    .pow-bar-wrap {
+      width: 260px;
+      height: 6px;
+      background: #2A2D3E;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .pow-bar-fill {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, #4F98A3, #6BC5D2);
+      border-radius: 3px;
+      transition: width 0.12s linear;
+    }
+
+    .pow-pct {
+      font-size: 13px;
+      color: #7A7B85;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .pow-overlay.done .pow-icon {
+      animation: none;
+      border-color: #4F98A3;
+    }
+
+    /* ================================================================
+       BEHAVIOR ANALYSIS SIDEBAR
+       ================================================================ */
+    .behavior-panel {
+      width: 280px;
+      background: #161822;
+      border-left: 1px solid #23263A;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      overflow-y: auto;
+    }
+
+    .bp-header {
+      padding: 14px 16px;
+      border-bottom: 1px solid #23263A;
+    }
+
+    .bp-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #7A7B85;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .bp-title svg {
+      width: 14px;
+      height: 14px;
+      color: #4F98A3;
+    }
+
+    /* Mouse trajectory canvas */
+    .trajectory-section {
+      padding: 16px;
+      border-bottom: 1px solid #23263A;
+    }
+
+    .trajectory-label {
+      font-size: 11px;
+      font-weight: 500;
+      color: #5A5B65;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+
+    .trajectory-canvas-wrap {
+      background: #1E2030;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #23263A;
+    }
+
+    #trajectoryCanvas {
+      display: block;
+      width: 100%;
+      height: 150px;
+    }
+
+    /* Scores */
+    .scores-section {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .score-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .score-name {
+      font-size: 12px;
+      color: #7A7B85;
+    }
+
+    .score-value {
+      font-size: 13px;
+      font-weight: 600;
+      color: #E4E4E8;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .score-bar-bg {
+      width: 80px;
+      height: 4px;
+      background: #2A2D3E;
+      border-radius: 2px;
+      overflow: hidden;
+      margin-left: 10px;
+    }
+
+    .score-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.6s ease;
+    }
+
+    .score-right {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Verdict badge */
+    .verdict-section {
+      padding: 16px;
+      border-top: 1px solid #23263A;
+    }
+
+    .verdict-card {
+      background: #1E2030;
+      border-radius: 10px;
+      padding: 14px 16px;
+      text-align: center;
+      border: 1px solid #23263A;
+    }
+
+    .verdict-label {
+      font-size: 11px;
+      color: #5A5B65;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+    }
+
+    .verdict-score {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 6px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .verdict-badge {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: 20px;
+      letter-spacing: 0.02em;
+    }
+
+    .badge-human {
+      background: rgba(90, 228, 122, 0.12);
+      color: #5AE47A;
+    }
+
+    .badge-suspicious {
+      background: rgba(228, 185, 90, 0.12);
+      color: #E4B95A;
+    }
+
+    .badge-bot {
+      background: rgba(228, 90, 90, 0.12);
+      color: #E45A5A;
+    }
+
+    /* Data points counter */
+    .data-points {
+      padding: 12px 16px;
+      font-size: 11px;
+      color: #5A5B65;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .data-points .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #4F98A3;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    /* ================================================================
+       RESPONSIVE
+       ================================================================ */
+    @media (max-width: 900px) {
+      .main-content {
+        flex-direction: column;
+      }
+
+      .behavior-panel {
+        width: 100%;
+        border-left: none;
+        border-top: 1px solid #23263A;
+        flex-direction: row;
+        flex-wrap: wrap;
+        max-height: 300px;
+      }
+
+      .bp-header {
+        width: 100%;
+      }
+
+      .trajectory-section {
+        flex: 1;
+        min-width: 200px;
+      }
+
+      .scores-section {
+        flex: 1;
+        min-width: 200px;
+      }
+
+      .verdict-section {
+        width: 100%;
+        border-top: none;
+        border-left: none;
+      }
+
+      .captcha-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .top-bar {
+        padding: 0 12px;
+        gap: 12px;
+      }
+
+      .controls-bar {
+        padding: 0 12px;
+        gap: 10px;
+        flex-wrap: wrap;
+        height: auto;
+        padding-top: 8px;
+        padding-bottom: 8px;
+      }
+
+      .captcha-area {
+        padding: 12px;
+      }
+
+      .tab-btn {
+        font-size: 12px;
+        padding: 6px 10px;
+      }
+    }
+
+    /* ================================================================
+       SCROLLBAR STYLING
+       ================================================================ */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #2A2D3E; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #363A50; }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <!-- TOP BAR -->
+    <header class="top-bar">
+      <div class="logo">
+        <!-- Shield + checkmark icon -->
+        <svg viewBox="0 0 28 28" fill="none">
+          <path d="M14 2L4 6.5V13C4 19.35 8.26 25.24 14 27C19.74 25.24 24 19.35 24 13V6.5L14 2Z" fill="#4F98A3" fill-opacity="0.15" stroke="#4F98A3" stroke-width="1.5" stroke-linejoin="round"/>
+          <path d="M10 14L13 17L19 11" stroke="#4F98A3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="logo-text">Captcha Demo</span>
+        <span class="logo-tag">v3</span>
+      </div>
+      <nav class="tabs" id="tabNav">
+        <button class="tab-btn active" data-tab="all">Все три</button>
+        <button class="tab-btn" data-tab="odd">Найди лишнее</button>
+        <button class="tab-btn" data-tab="impossible">Что невозможно?</button>
+        <button class="tab-btn" data-tab="alphabet">Нерусские буквы</button>
+        <button class="tab-btn" data-tab="combinator">Комбинатор</button>
+      </nav>
+    </header>
+
+    <!-- CONTROLS BAR -->
+    <div class="controls-bar">
+      <div class="control-group">
+        <span class="control-label">Proof-of-Work</span>
+        <label class="toggle">
+          <input type="checkbox" id="powToggle">
+          <span class="toggle-track"></span>
+          <span class="toggle-thumb"></span>
+        </label>
+      </div>
+
+      <div class="separator"></div>
+
+      <div class="control-group" id="diffGroup" style="opacity:0.4;pointer-events:none;">
+        <span class="control-label">Сложность</span>
+        <div class="diff-selector">
+          <button class="diff-btn active" data-ms="200">Лёгкий (0.2с)</button>
+          <button class="diff-btn" data-ms="500">Средний (0.5с)</button>
+          <button class="diff-btn" data-ms="2000">Сложный (2с)</button>
+        </div>
+      </div>
+
+      <div class="separator"></div>
+
+      <button class="refresh-btn" id="refreshBtn">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M13.5 7A5.5 5.5 0 1 0 12 12"/>
+          <path d="M13.5 3v4h-4"/>
+        </svg>
+        Обновить
+      </button>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="main-content">
+      <!-- CAPTCHA DISPLAY AREA -->
+      <div class="captcha-area" id="captchaArea">
+        <!-- PoW overlay -->
+        <div class="pow-overlay" id="powOverlay">
+          <div class="pow-icon"></div>
+          <div class="pow-label" id="powLabel">Подготовка...</div>
+          <div class="pow-bar-wrap">
+            <div class="pow-bar-fill" id="powBarFill"></div>
+          </div>
+          <div class="pow-pct" id="powPct">0%</div>
+        </div>
+
+        <!-- Tab: All three -->
+        <div class="tab-panel active" id="panel-all">
+          <div class="captcha-grid">
+            <div class="captcha-card">
+              <div class="captcha-card-header">
+                <span class="captcha-card-dot dot-1"></span>
+                <span class="captcha-card-dot dot-2"></span>
+                <span class="captcha-card-dot dot-3"></span>
+                <span class="captcha-card-title">Найди лишнее</span>
+              </div>
+              <iframe src="captcha1_demo.html" loading="lazy"></iframe>
+            </div>
+            <div class="captcha-card">
+              <div class="captcha-card-header">
+                <span class="captcha-card-dot dot-1"></span>
+                <span class="captcha-card-dot dot-2"></span>
+                <span class="captcha-card-dot dot-3"></span>
+                <span class="captcha-card-title">Что невозможно?</span>
+              </div>
+              <iframe src="captcha2_demo.html" loading="lazy"></iframe>
+            </div>
+            <div class="captcha-card">
+              <div class="captcha-card-header">
+                <span class="captcha-card-dot dot-1"></span>
+                <span class="captcha-card-dot dot-2"></span>
+                <span class="captcha-card-dot dot-3"></span>
+                <span class="captcha-card-title">Нерусские буквы</span>
+              </div>
+              <iframe src="captcha3_demo.html" loading="lazy"></iframe>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Odd One Out -->
+        <div class="tab-panel" id="panel-odd">
+          <div class="single-view">
+            <div class="captcha-card">
+              <div class="captcha-card-header">
+                <span class="captcha-card-dot dot-1"></span>
+                <span class="captcha-card-dot dot-2"></span>
+                <span class="captcha-card-dot dot-3"></span>
+                <span class="captcha-card-title">Найди лишнее — Odd One Out</span>
+              </div>
+              <iframe src="captcha1_demo.html" loading="lazy"></iframe>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Impossible Reality -->
+        <div class="tab-panel" id="panel-impossible">
+          <div class="single-view">
+            <div class="captcha-card">
+              <div class="captcha-card-header">
+                <span class="captcha-card-dot dot-1"></span>
+                <span class="captcha-card-dot dot-2"></span>
+                <span class="captcha-card-dot dot-3"></span>
+                <span class="captcha-card-title">Что невозможно? — Impossible Reality</span>
+              </div>
+              <iframe src="captcha2_demo.html" loading="lazy"></iframe>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Alphabet Filter -->
+        <div class="tab-panel" id="panel-alphabet">
+          <div class="single-view">
+            <div class="captcha-card">
+              <div class="captcha-card-header">
+                <span class="captcha-card-dot dot-1"></span>
+                <span class="captcha-card-dot dot-2"></span>
+                <span class="captcha-card-dot dot-3"></span>
+                <span class="captcha-card-title">Нерусские буквы — Alphabet Filter</span>
+              </div>
+              <iframe src="captcha3_demo.html" loading="lazy"></iframe>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Combinator -->
+        <div class="tab-panel" id="panel-combinator">
+          <div class="single-view">
+            <div class="captcha-card" id="combinatorCard">
+              <div class="captcha-card-header">
+                <span class="captcha-card-dot dot-1"></span>
+                <span class="captcha-card-dot dot-2"></span>
+                <span class="captcha-card-dot dot-3"></span>
+                <span class="captcha-card-title" id="combinatorTitle">Комбинатор — случайная капча</span>
+              </div>
+              <iframe id="combinatorFrame" src="" loading="lazy"></iframe>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BEHAVIOR ANALYSIS SIDEBAR -->
+      <aside class="behavior-panel">
+        <div class="bp-header">
+          <div class="bp-title">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="8" cy="8" r="6"/>
+              <path d="M8 5v3l2 2"/>
+            </svg>
+            Поведенческий анализ
+          </div>
+        </div>
+
+        <!-- Live trajectory canvas -->
+        <div class="trajectory-section">
+          <div class="trajectory-label">Траектория мыши</div>
+          <div class="trajectory-canvas-wrap">
+            <canvas id="trajectoryCanvas" width="496" height="300"></canvas>
+          </div>
+        </div>
+
+        <!-- Data points indicator -->
+        <div class="data-points">
+          <span class="dot"></span>
+          <span id="dataPointsCount">0 точек собрано</span>
+        </div>
+
+        <!-- Score rows -->
+        <div class="scores-section" id="scoresSection">
+          <div class="score-row">
+            <span class="score-name">Линейность</span>
+            <div class="score-right">
+              <div class="score-bar-bg"><div class="score-bar-fill" id="bar-linearity" style="width:0%;background:#4F98A3;"></div></div>
+              <span class="score-value" id="val-linearity">—</span>
+            </div>
+          </div>
+          <div class="score-row">
+            <span class="score-name">Вариативность скорости</span>
+            <div class="score-right">
+              <div class="score-bar-bg"><div class="score-bar-fill" id="bar-velocity" style="width:0%;background:#6BC5D2;"></div></div>
+              <span class="score-value" id="val-velocity">—</span>
+            </div>
+          </div>
+          <div class="score-row">
+            <span class="score-name">Регулярность</span>
+            <div class="score-right">
+              <div class="score-bar-bg"><div class="score-bar-fill" id="bar-regularity" style="width:0%;background:#4F98A3;"></div></div>
+              <span class="score-value" id="val-regularity">—</span>
+            </div>
+          </div>
+          <div class="score-row">
+            <span class="score-name">Точность клика</span>
+            <div class="score-right">
+              <div class="score-bar-bg"><div class="score-bar-fill" id="bar-click" style="width:0%;background:#6BC5D2;"></div></div>
+              <span class="score-value" id="val-click">—</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Verdict -->
+        <div class="verdict-section">
+          <div class="verdict-card">
+            <div class="verdict-label">Итоговая оценка</div>
+            <div class="verdict-score" id="verdictScore">—</div>
+            <div id="verdictBadge"></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    // ================================================================
+    // TAB NAVIGATION
+    // ================================================================
+    (function initTabs() {
+      var tabBtns = document.querySelectorAll('.tab-btn');
+      var panels  = document.querySelectorAll('.tab-panel');
+      var tabMap  = {
+        all:        'panel-all',
+        odd:        'panel-odd',
+        impossible: 'panel-impossible',
+        alphabet:   'panel-alphabet',
+        combinator: 'panel-combinator'
+      };
+
+      tabBtns.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var tab = btn.getAttribute('data-tab');
+          // Update active button
+          tabBtns.forEach(function(b) { b.classList.remove('active'); });
+          btn.classList.add('active');
+          // Update active panel
+          panels.forEach(function(p) { p.classList.remove('active'); });
+          var panel = document.getElementById(tabMap[tab]);
+          if (panel) panel.classList.add('active');
+          // Handle combinator tab
+          if (tab === 'combinator') {
+            loadCombinator();
+          }
+        });
+      });
+    })();
+
+    // ================================================================
+    // COMBINATOR — randomly pick one of 3 captchas
+    // ================================================================
+    var captchaFiles = [
+      { file: 'captcha1_demo.html', name: 'Найди лишнее' },
+      { file: 'captcha2_demo.html', name: 'Что невозможно?' },
+      { file: 'captcha3_demo.html', name: 'Нерусские буквы' }
+    ];
+
+    function loadCombinator() {
+      var idx = Math.floor(Math.random() * captchaFiles.length);
+      var chosen = captchaFiles[idx];
+      var title  = document.getElementById('combinatorTitle');
+      var frame  = document.getElementById('combinatorFrame');
+      title.textContent = 'Комбинатор — ' + chosen.name;
+
+      // Check if PoW should gate this
+      if (document.getElementById('powToggle').checked) {
+        runPow(function() {
+          // Force reload by clearing then setting src
+          frame.src = '';
+          requestAnimationFrame(function() { frame.src = chosen.file; });
+        });
+      } else {
+        frame.src = '';
+        requestAnimationFrame(function() { frame.src = chosen.file; });
+      }
+    }
+
+    // ================================================================
+    // POW TOGGLE & DIFFICULTY
+    // ================================================================
+    var powToggle  = document.getElementById('powToggle');
+    var diffGroup  = document.getElementById('diffGroup');
+    var diffBtns   = document.querySelectorAll('.diff-btn');
+    var currentDiffMs = 200;
+
+    powToggle.addEventListener('change', function() {
+      if (powToggle.checked) {
+        diffGroup.style.opacity = '1';
+        diffGroup.style.pointerEvents = 'auto';
+      } else {
+        diffGroup.style.opacity = '0.4';
+        diffGroup.style.pointerEvents = 'none';
+      }
+    });
+
+    diffBtns.forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        diffBtns.forEach(function(b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        currentDiffMs = parseInt(btn.getAttribute('data-ms'), 10);
+      });
+    });
+
+    // ================================================================
+    // POW SIMULATION
+    // ================================================================
+    function runPow(onComplete) {
+      var overlay = document.getElementById('powOverlay');
+      var barFill = document.getElementById('powBarFill');
+      var pctEl   = document.getElementById('powPct');
+      var labelEl = document.getElementById('powLabel');
+
+      // Reset state
+      overlay.classList.remove('done');
+      overlay.classList.add('visible');
+      barFill.style.width = '0%';
+      pctEl.textContent = '0%';
+      labelEl.textContent = 'Подготовка...';
+
+      var progress = 0;
+      var duration = currentDiffMs;
+      var stepMs   = 30;
+      var steps    = Math.ceil(duration / stepMs);
+      var increment = 100 / steps;
+      var timer;
+
+      function step() {
+        progress += increment;
+        if (progress >= 100) {
+          progress = 100;
+          barFill.style.width = '100%';
+          pctEl.textContent = '100%';
+          labelEl.textContent = 'Готово';
+          overlay.classList.add('done');
+          clearInterval(timer);
+          // Hide overlay after brief pause
+          setTimeout(function() {
+            overlay.classList.remove('visible');
+            overlay.classList.remove('done');
+            if (onComplete) onComplete();
+          }, 350);
+          return;
+        }
+        var p = Math.round(progress);
+        barFill.style.width = p + '%';
+        pctEl.textContent = p + '%';
+      }
+
+      timer = setInterval(step, stepMs);
+    }
+
+    // ================================================================
+    // REFRESH BUTTON — reloads all visible iframes, optionally via PoW
+    // ================================================================
+    document.getElementById('refreshBtn').addEventListener('click', function() {
+      function doRefresh() {
+        // Find the active panel
+        var activePanel = document.querySelector('.tab-panel.active');
+        if (!activePanel) return;
+
+        // If combinator, reload combinator
+        if (activePanel.id === 'panel-combinator') {
+          loadCombinator();
+          return;
+        }
+
+        // Reload all iframes in the active panel
+        var iframes = activePanel.querySelectorAll('iframe');
+        iframes.forEach(function(iframe) {
+          var src = iframe.src;
+          iframe.src = '';
+          requestAnimationFrame(function() { iframe.src = src; });
+        });
+      }
+
+      if (powToggle.checked) {
+        runPow(doRefresh);
+      } else {
+        doRefresh();
+      }
+    });
+
+    // ================================================================
+    // BEHAVIOR ANALYSIS — mouse tracking & scoring
+    // ================================================================
+    (function initBehavior() {
+      var canvas = document.getElementById('trajectoryCanvas');
+      var ctx    = canvas.getContext('2d');
+      var captchaArea = document.getElementById('captchaArea');
+
+      // Tracking data
+      var mouseData = [];
+      var clicks    = [];
+      var lastDraw  = 0;
+      var analysisTimer = null;
+
+      // Canvas drawing state
+      var canvasW = canvas.width;
+      var canvasH = canvas.height;
+
+      // Clear canvas with grid
+      function clearCanvas() {
+        ctx.fillStyle = '#1E2030';
+        ctx.fillRect(0, 0, canvasW, canvasH);
+        // Draw subtle grid
+        ctx.strokeStyle = 'rgba(42, 45, 62, 0.6)';
+        ctx.lineWidth = 0.5;
+        for (var x = 0; x < canvasW; x += 40) {
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, canvasH);
+          ctx.stroke();
+        }
+        for (var y = 0; y < canvasH; y += 30) {
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(canvasW, y);
+          ctx.stroke();
+        }
+      }
+
+      clearCanvas();
+
+      // Normalize mouse position relative to captcha area to canvas coordinates
+      function toCanvas(clientX, clientY) {
+        var rect = captchaArea.getBoundingClientRect();
+        var nx = (clientX - rect.left) / rect.width;
+        var ny = (clientY - rect.top) / rect.height;
+        return {
+          cx: Math.max(0, Math.min(canvasW, nx * canvasW)),
+          cy: Math.max(0, Math.min(canvasH, ny * canvasH))
+        };
+      }
+
+      // Draw the trajectory line
+      function drawTrajectory() {
+        clearCanvas();
+        if (mouseData.length < 2) return;
+
+        // Draw path with gradient opacity
+        var total = mouseData.length;
+        for (var i = 1; i < total; i++) {
+          var alpha = 0.15 + 0.85 * (i / total);
+          ctx.strokeStyle = 'rgba(79, 152, 163, ' + alpha.toFixed(2) + ')';
+          ctx.lineWidth = 1.5 + (i / total);
+          ctx.beginPath();
+          ctx.moveTo(mouseData[i-1].cx, mouseData[i-1].cy);
+          ctx.lineTo(mouseData[i].cx, mouseData[i].cy);
+          ctx.stroke();
+        }
+
+        // Draw dots at click positions
+        clicks.forEach(function(c) {
+          var pos = toCanvas(c.clientX, c.clientY);
+          ctx.beginPath();
+          ctx.arc(pos.cx, pos.cy, 4, 0, Math.PI * 2);
+          ctx.fillStyle = '#E45A5A';
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(pos.cx, pos.cy, 7, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(228, 90, 90, 0.4)';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        });
+
+        // Latest point indicator
+        if (total > 0) {
+          var last = mouseData[total - 1];
+          ctx.beginPath();
+          ctx.arc(last.cx, last.cy, 3, 0, Math.PI * 2);
+          ctx.fillStyle = '#6BC5D2';
+          ctx.fill();
+        }
+      }
+
+      // Track mouse movement across the ENTIRE page — captures movement
+      // towards, over, and away from captcha areas. This gives a full
+      // behavioral picture (trajectory to target, hesitation, etc.).
+      // Using document-level listener because iframe captures its own
+      // mousemove events and doesn't bubble them to the parent.
+      var sampleInterval = 40; // ms between samples
+      var lastSampleTime = 0;
+
+      document.addEventListener('mousemove', function(e) {
+        var now = performance.now();
+        if (now - lastSampleTime < sampleInterval) return;
+        lastSampleTime = now;
+
+        var pos = toCanvas(e.clientX, e.clientY);
+        mouseData.push({
+          cx: pos.cx,
+          cy: pos.cy,
+          clientX: e.clientX,
+          clientY: e.clientY,
+          t: now
+        });
+
+        // Update data points counter
+        document.getElementById('dataPointsCount').textContent =
+          mouseData.length + ' точек собрано';
+
+        // Redraw trajectory (throttled)
+        if (now - lastDraw > 50) {
+          lastDraw = now;
+          drawTrajectory();
+        }
+
+        // Debounce analysis — compute after 800ms of no movement
+        clearTimeout(analysisTimer);
+        analysisTimer = setTimeout(computeAnalysis, 800);
+      });
+
+      // Track clicks on the entire page
+      document.addEventListener('click', function(e) {
+        clicks.push({
+          clientX: e.clientX,
+          clientY: e.clientY,
+          t: performance.now()
+        });
+        drawTrajectory();
+        // Recompute immediately on click
+        setTimeout(computeAnalysis, 100);
+      });
+
+      // ================================================================
+      // IFRAME MOUSE/CLICK FORWARDING RECEIVER
+      // Captcha iframes forward mousemove/click events via postMessage.
+      // We convert iframe-local coordinates to parent viewport space,
+      // then feed them into the same tracking pipeline.
+      // ================================================================
+      function findIframeBySource(sourceWindow) {
+        var iframes = document.querySelectorAll('iframe');
+        for (var i = 0; i < iframes.length; i++) {
+          if (iframes[i].contentWindow === sourceWindow) {
+            return iframes[i];
+          }
+        }
+        return null;
+      }
+
+      window.addEventListener('message', function(e) {
+        if (!e.data || (e.data.type !== 'captcha:mouseMove' && e.data.type !== 'captcha:click')) {
+          return;
+        }
+
+        var iframe = findIframeBySource(e.source);
+        if (!iframe) return;
+
+        // Convert iframe-local viewport coordinates to parent viewport coordinates
+        var rect = iframe.getBoundingClientRect();
+        var parentX = rect.left + e.data.clientX;
+        var parentY = rect.top + e.data.clientY;
+
+        if (e.data.type === 'captcha:mouseMove') {
+          var pos = toCanvas(parentX, parentY);
+          var now = performance.now();
+          mouseData.push({
+            cx: pos.cx,
+            cy: pos.cy,
+            clientX: parentX,
+            clientY: parentY,
+            t: now
+          });
+
+          // Update data points counter
+          document.getElementById('dataPointsCount').textContent =
+            mouseData.length + ' точек собрано';
+
+          // Redraw trajectory (throttled)
+          if (now - lastDraw > 50) {
+            lastDraw = now;
+            drawTrajectory();
+          }
+
+          // Debounce analysis
+          clearTimeout(analysisTimer);
+          analysisTimer = setTimeout(computeAnalysis, 800);
+        } else if (e.data.type === 'captcha:click') {
+          clicks.push({
+            clientX: parentX,
+            clientY: parentY,
+            t: performance.now()
+          });
+          drawTrajectory();
+          setTimeout(computeAnalysis, 100);
+        }
+      });
+
+      // ================================================================
+      // BEHAVIOR SCORING ALGORITHMS
+      // ================================================================
+      function computeAnalysis() {
+        if (mouseData.length < 5) return;
+
+        var linearity  = computeLinearity();
+        var velocity   = computeVelocityVariance();
+        var regularity = computeRegularity();
+        var clickScore = computeClickAccuracy();
+
+        // Weighted total
+        var total = Math.round(
+          linearity  * 0.25 +
+          velocity   * 0.30 +
+          regularity * 0.25 +
+          clickScore * 0.20
+        );
+
+        // Update UI
+        updateScore('linearity',  linearity);
+        updateScore('velocity',   velocity);
+        updateScore('regularity', regularity);
+        updateScore('click',      clickScore);
+
+        // Verdict
+        var verdictScoreEl = document.getElementById('verdictScore');
+        var verdictBadgeEl = document.getElementById('verdictBadge');
+        verdictScoreEl.textContent = total + '/100';
+
+        if (total > 60) {
+          verdictScoreEl.style.color = '#5AE47A';
+          verdictBadgeEl.innerHTML = '<span class="verdict-badge badge-human">Человек</span>';
+        } else if (total < 40) {
+          verdictScoreEl.style.color = '#E45A5A';
+          verdictBadgeEl.innerHTML = '<span class="verdict-badge badge-bot">Бот?</span>';
+        } else {
+          verdictScoreEl.style.color = '#E4B95A';
+          verdictBadgeEl.innerHTML = '<span class="verdict-badge badge-suspicious">Подозрительно</span>';
+        }
+      }
+
+      function updateScore(name, value) {
+        var bar = document.getElementById('bar-' + name);
+        var val = document.getElementById('val-' + name);
+        if (bar) bar.style.width = value + '%';
+        if (val) val.textContent = value + '/100';
+      }
+
+      // Linearity: how non-linear the mouse path is.
+      // Human paths have moderate angle changes — not perfectly straight (bot)
+      // and not completely random.
+      function computeLinearity() {
+        if (mouseData.length < 3) return 50;
+
+        var angleChanges = [];
+        for (var i = 2; i < mouseData.length; i++) {
+          var dx1 = mouseData[i-1].cx - mouseData[i-2].cx;
+          var dy1 = mouseData[i-1].cy - mouseData[i-2].cy;
+          var dx2 = mouseData[i].cx   - mouseData[i-1].cx;
+          var dy2 = mouseData[i].cy   - mouseData[i-1].cy;
+
+          var angle1 = Math.atan2(dy1, dx1);
+          var angle2 = Math.atan2(dy2, dx2);
+          var diff   = Math.abs(angle2 - angle1);
+          if (diff > Math.PI) diff = 2 * Math.PI - diff;
+          angleChanges.push(diff);
+        }
+
+        if (angleChanges.length === 0) return 50;
+
+        // Average angle change, normalized: human typical is 0.2-0.8 radians
+        var avg = angleChanges.reduce(function(a, b) { return a + b; }, 0) / angleChanges.length;
+        // Map to 0-100: peak score around 0.3-0.5 rad
+        var score;
+        if (avg < 0.05) {
+          // Too straight — bot-like
+          score = 20 + avg / 0.05 * 30;
+        } else if (avg < 0.6) {
+          // Good human range
+          score = 50 + (1 - Math.abs(avg - 0.3) / 0.3) * 50;
+        } else {
+          // Too erratic
+          score = Math.max(10, 80 - (avg - 0.6) * 100);
+        }
+
+        return Math.round(Math.max(0, Math.min(100, score)));
+      }
+
+      // Velocity variance: humans have varied speeds.
+      // Bots tend to be constant.
+      function computeVelocityVariance() {
+        if (mouseData.length < 3) return 50;
+
+        var speeds = [];
+        for (var i = 1; i < mouseData.length; i++) {
+          var dx = mouseData[i].cx - mouseData[i-1].cx;
+          var dy = mouseData[i].cy - mouseData[i-1].cy;
+          var dt = Math.max(1, mouseData[i].t - mouseData[i-1].t);
+          speeds.push(Math.sqrt(dx*dx + dy*dy) / dt);
+        }
+
+        var meanV = speeds.reduce(function(a, b) { return a + b; }, 0) / speeds.length;
+        if (meanV < 0.001) return 30;
+
+        var variance = speeds.reduce(function(a, b) {
+          var d = b - meanV;
+          return a + d * d;
+        }, 0) / speeds.length;
+        var stdV = Math.sqrt(variance);
+        var cv = stdV / meanV; // coefficient of variation
+
+        // Human CV typically 0.3-1.5; bots near 0
+        var score;
+        if (cv < 0.1) {
+          score = 15 + cv / 0.1 * 25;
+        } else if (cv < 1.5) {
+          score = 40 + (cv / 1.5) * 60;
+        } else {
+          score = Math.max(50, 100 - (cv - 1.5) * 20);
+        }
+
+        return Math.round(Math.max(0, Math.min(100, score)));
+      }
+
+      // Regularity: how irregular the timing intervals are.
+      // Bots have perfectly regular intervals; humans vary.
+      function computeRegularity() {
+        if (mouseData.length < 3) return 50;
+
+        var intervals = [];
+        for (var i = 1; i < mouseData.length; i++) {
+          intervals.push(mouseData[i].t - mouseData[i-1].t);
+        }
+
+        var meanI = intervals.reduce(function(a, b) { return a + b; }, 0) / intervals.length;
+        if (meanI < 1) return 30;
+
+        var variance = intervals.reduce(function(a, b) {
+          var d = b - meanI;
+          return a + d * d;
+        }, 0) / intervals.length;
+        var stdI = Math.sqrt(variance);
+        var cv = stdI / meanI;
+
+        // Human timing CV: typically 0.1-0.8; bots near 0
+        var score;
+        if (cv < 0.05) {
+          // Too regular — bot-like
+          score = 10 + cv / 0.05 * 30;
+        } else if (cv < 0.8) {
+          score = 40 + (cv / 0.8) * 55;
+        } else {
+          score = Math.max(40, 95 - (cv - 0.8) * 30);
+        }
+
+        return Math.round(Math.max(0, Math.min(100, score)));
+      }
+
+      // Click accuracy: how close clicks are to the trajectory.
+      // Measures click position stability and proximity to recent movement.
+      function computeClickAccuracy() {
+        if (clicks.length === 0) return 50;
+        if (mouseData.length < 2) return 50;
+
+        var scores = [];
+        clicks.forEach(function(click) {
+          var pos = toCanvas(click.clientX, click.clientY);
+
+          // Find the nearest trajectory point by time
+          var closestDist = Infinity;
+          for (var i = 0; i < mouseData.length; i++) {
+            var dx = pos.cx - mouseData[i].cx;
+            var dy = pos.cy - mouseData[i].cy;
+            var dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist < closestDist) closestDist = dist;
+          }
+
+          // Normalize distance: 0 = exact, 100px = far
+          var maxDist = 80;
+          var s = Math.max(0, 1 - closestDist / maxDist) * 100;
+          scores.push(s);
+        });
+
+        var avg = scores.reduce(function(a, b) { return a + b; }, 0) / scores.length;
+        return Math.round(Math.max(0, Math.min(100, avg)));
+      }
+
+      // ================================================================
+      // Reset behavior data when tab changes or refresh
+      // ================================================================
+      document.querySelectorAll('.tab-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          mouseData = [];
+          clicks    = [];
+          lastSampleTime = 0;
+          clearCanvas();
+          document.getElementById('dataPointsCount').textContent = '0 точек собрано';
+          // Reset scores
+          ['linearity', 'velocity', 'regularity', 'click'].forEach(function(name) {
+            var bar = document.getElementById('bar-' + name);
+            var val = document.getElementById('val-' + name);
+            if (bar) bar.style.width = '0%';
+            if (val) val.textContent = '—';
+          });
+          document.getElementById('verdictScore').textContent = '—';
+          document.getElementById('verdictScore').style.color = '#E4E4E8';
+          document.getElementById('verdictBadge').innerHTML = '';
+        });
+      });
+
+      document.getElementById('refreshBtn').addEventListener('click', function() {
+        mouseData = [];
+        clicks    = [];
+        lastSampleTime = 0;
+        clearCanvas();
+        document.getElementById('dataPointsCount').textContent = '0 точек собрано';
+      });
+    })();
+  </script>
+</body>
+</html>
