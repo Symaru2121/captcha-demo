@@ -5,25 +5,147 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Captcha</title>
     <style>
+        /* Box-sizing reset */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ================================================================
+       UNIFIED TOP BAR
+       ================================================================ */
+    .top-bar {
+      background: #161822;
+      border-bottom: 1px solid #23263A;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      height: 56px;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .logo svg {
+      width: 28px;
+      height: 28px;
+    }
+
+    .logo-text {
+      font-size: 15px;
+      font-weight: 700;
+      color: #E4E4E8;
+      letter-spacing: -0.02em;
+    }
+
+    .logo-tag {
+      font-size: 10px;
+      font-weight: 600;
+      color: #E4E4E8;
+      background: #2A2D3E;
+      padding: 2px 6px;
+      border-radius: 4px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .separator {
+      width: 1px;
+      height: 24px;
+      background: #23263A;
+      flex-shrink: 0;
+    }
+
+    .complexity-control {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .complexity-label {
+      font-size: 12px;
+      color: #7A7B85;
+      white-space: nowrap;
+    }
+
+    .complexity-slider {
+      width: 160px;
+      height: 4px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: #23263A;
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .complexity-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #B8B9C1;
+      cursor: pointer;
+    }
+
+    .complexity-value {
+      font-size: 13px;
+      font-weight: 700;
+      color: #E4E4E8;
+      min-width: 28px;
+      text-align: center;
+    }
+
+    .refresh-btn {
+      margin-left: auto;
+      background: #1E2030;
+      color: #B8B9C1;
+      border: 1px solid #23263A;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      white-space: nowrap;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .refresh-btn:hover {
+      background: #23263A;
+      border-color: #3A3D52;
+    }
+
         /* Base page styles matching production */
         html, body {
             padding: 0;
             margin: 0;
-            background: #f5f5f5;
+            background: #0F1117;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             user-select: none;
             -webkit-user-select: none;
         }
 
+        /* Layout shell */
+        .shell {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
         /* Root container */
         #app {
             padding: 12px 16px 12px;
-            border-radius: 20px 20px 0 0;
             background: #fff;
             display: flex;
             flex-direction: column;
             align-items: center;
-            min-height: 100vh;
+            flex: 1;
             box-sizing: border-box;
         }
 
@@ -92,66 +214,9 @@
             justify-content: center;
         }
 
-        /* Buttons */
-        #newTaskButton,
-        #refreshButton {
-            border: 0;
-            border-radius: 10px;
-            background: #1a1a1a;
-            color: #fff;
-            font-size: 13px;
-            font-weight: 600;
-            padding: 10px 14px;
-            cursor: pointer;
-            line-height: 1;
-        }
 
-        #newTaskButton:hover,
-        #refreshButton:hover {
-            background: #2a2a2a;
-        }
 
-        #newTaskButton:active,
-        #refreshButton:active {
-            transform: translateY(1px);
-        }
 
-        #newTaskButton:disabled,
-        #refreshButton:disabled {
-            opacity: 0.45;
-            cursor: default;
-            transform: none;
-        }
-
-        /* Controls block */
-        #controls {
-            width: 320px;
-            margin-top: 10px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        #complexityRow {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        #complexityLabel {
-            font-size: 12px;
-            color: #666;
-        }
-
-        #complexityValue {
-            color: #1a1a1a;
-            font-weight: 600;
-        }
-
-        #complexitySlider {
-            width: 100%;
-            margin: 0;
-        }
 
         /* Footer */
         #footer {
@@ -176,6 +241,28 @@
     </style>
 </head>
 <body>
+<div class="shell">
+  <div class="top-bar">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#B8B9C1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="9 11 12 14 22 4"></polyline>
+        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+      </svg>
+      <span class="logo-text">Captcha Sandbox</span>
+      <span class="logo-tag">DEMO</span>
+    </div>
+    <div class="separator"></div>
+    <div class="complexity-control">
+      <span class="complexity-label">Сложность:</span>
+      <input type="range" id="complexitySlider" class="complexity-slider" min="1" max="100" value="50">
+      <span class="complexity-value" id="complexityValue">50</span>
+    </div>
+    <button id="refreshBtn" class="refresh-btn" onclick="handleNewTask()">
+      <span style="margin-right:6px;">↻</span>
+      Новое задание
+    </button>
+  </div>
+
 <div id="app">
     <div id="title">Найдите лишнее</div>
     <div id="subtitle">Нажмите на символ, который не подходит к остальным</div>
@@ -190,17 +277,7 @@
         <span id="confidence"></span>
     </div>
 
-    <div id="actions">
-        <button id="newTaskButton" type="button" hidden>Новое задание</button>
-    </div>
 
-    <div id="controls">
-        <div id="complexityRow">
-            <label for="complexitySlider" id="complexityLabel">Сложность: <span id="complexityValue">50</span></label>
-            <input id="complexitySlider" type="range" min="1" max="100" step="1" value="50">
-        </div>
-        <button id="refreshButton" type="button">Обновить</button>
-    </div>
 
     <div id="footer">Задание займёт пару секунд</div>
 </div>
@@ -732,8 +809,8 @@ App.prototype.cacheDom = function() {
     this.footerEl = document.getElementById('footer');
     this.sliderEl = document.getElementById('complexitySlider');
     this.sliderValueEl = document.getElementById('complexityValue');
-    this.refreshButton = document.getElementById('refreshButton');
-    this.newTaskButton = document.getElementById('newTaskButton');
+    this.refreshButton = document.getElementById('refreshBtn');
+    this.newTaskButton = document.getElementById('refreshBtn');
 };
 
 // ============================================================
@@ -763,10 +840,7 @@ App.prototype.bindEvents = function() {
         self.generateChallenge();
     });
 
-    // New task button generates new challenge
-    this.newTaskButton.addEventListener('click', function() {
-        self.generateChallenge();
-    });
+    // New task button is now handled by refreshBtn and global handleNewTask
 
     // Canvas pointer tracking for confidence scoring
     this.canvas.addEventListener('pointerenter', function() {
@@ -1164,7 +1238,7 @@ App.prototype.updateStatusUI = function() {
         this.statusEl.textContent = '\u2713 \u041F\u0440\u0430\u0432\u0438\u043B\u044C\u043D\u043E!';
         this.statusEl.classList.add('status-success');
         this.confidenceEl.textContent = '\u0423\u0432\u0435\u0440\u0435\u043D\u043D\u043E\u0441\u0442\u044C: ' + this.state.confidence + '%';
-        this.newTaskButton.hidden = false;
+        // newTaskButton hidden toggle removed (now in top bar)
         this.canvas.style.cursor = 'default';
         return;
     }
@@ -1173,7 +1247,7 @@ App.prototype.updateStatusUI = function() {
         this.statusEl.textContent = '\u2717 \u041D\u0435\u043F\u0440\u0430\u0432\u0438\u043B\u044C\u043D\u043E';
         this.statusEl.classList.add('status-error');
         this.confidenceEl.textContent = '\u0423\u0432\u0435\u0440\u0435\u043D\u043D\u043E\u0441\u0442\u044C: ' + this.state.confidence + '%';
-        this.newTaskButton.hidden = false;
+        // newTaskButton hidden toggle removed (now in top bar)
         this.canvas.style.cursor = 'default';
         return;
     }
@@ -1181,7 +1255,7 @@ App.prototype.updateStatusUI = function() {
     this.statusEl.textContent = '';
     this.statusEl.classList.add('status-neutral');
     this.confidenceEl.textContent = '';
-    this.newTaskButton.hidden = true;
+    // newTaskButton hidden toggle removed (now in top bar)
     this.canvas.style.cursor = 'pointer';
 };
 
@@ -1193,7 +1267,7 @@ App.prototype.resetResultUI = function() {
     this.statusEl.classList.remove('status-success', 'status-error', 'status-neutral');
     this.statusEl.classList.add('status-neutral');
     this.confidenceEl.textContent = '';
-    this.newTaskButton.hidden = true;
+    // newTaskButton hidden toggle removed (now in top bar)
     this.canvas.style.cursor = 'pointer';
 };
 
@@ -1203,17 +1277,41 @@ App.prototype.resetResultUI = function() {
 document.addEventListener('DOMContentLoaded', function() {
     var app = new App();
     app.run();
+
+    // Global handler for unified top bar button
+    window.handleNewTask = function() {
+        app.generateChallenge();
+    };
 });
 </script>
 
-<!-- Iframe-to-parent mouse/click event forwarder for behavioral analysis -->
+<!-- Parent-iframe integration: incoming commands + outgoing event forwarding -->
 <script>
 (function () {
   // Only activate when running inside an iframe
   if (window.parent === window) return;
 
+  // --- Incoming message handler ---
+  window.addEventListener('message', function (e) {
+    if (!e.data || !e.data.type) return;
+
+    if (e.data.type === 'setComplexity') {
+      var slider = document.getElementById('complexitySlider');
+      var label  = document.getElementById('complexityValue');
+      if (slider && e.data.value !== undefined) {
+        slider.value = Math.max(1, Math.min(100, e.data.value));
+        if (label) label.textContent = slider.value;
+      }
+    } else if (e.data.type === 'reset') {
+      // Trigger new challenge via the refresh button
+      var btn = document.getElementById('refreshBtn');
+      if (btn) btn.click();
+    }
+  });
+
+  // --- Outgoing: throttled mousemove forwarding ---
   var lastMoveAt = 0;
-  var MOVE_INTERVAL_MS = 40; // Throttle to ~25 fps
+  var MOVE_INTERVAL_MS = 40; // ~25 fps throttle
 
   function postToParent(type, e) {
     window.parent.postMessage({
@@ -1224,7 +1322,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }, '*');
   }
 
-  // Forward throttled mousemove events
   document.addEventListener('mousemove', function (e) {
     var now = performance.now();
     if (now - lastMoveAt < MOVE_INTERVAL_MS) return;
@@ -1232,11 +1329,59 @@ document.addEventListener('DOMContentLoaded', function() {
     postToParent('captcha:mouseMove', e);
   }, { passive: true });
 
-  // Forward click events (capture phase for robustness)
+  // --- Outgoing: click forwarding (capture phase) ---
   document.addEventListener('click', function (e) {
     postToParent('captcha:click', e);
   }, true);
+
+  // --- Outgoing: captcha:status and captcha:result ---
+  // Observe DOM elements to detect state changes without modifying the main App.
+  var statusSent = '';
+  var resultSent = false;
+
+  function checkStatus() {
+    var statusEl     = document.getElementById('status');
+    var confidenceEl = document.getElementById('confidence');
+    if (!statusEl) return;
+
+    var statusText     = statusEl.textContent || '';
+    var confidenceText = confidenceEl ? confidenceEl.textContent || '' : '';
+
+    // Detect solving state (status not empty, no confidence yet)
+    if (statusText && !confidenceText && statusSent !== 'solving') {
+      statusSent = 'solving';
+      window.parent.postMessage({ type: 'captcha:status', status: 'solving' }, '*');
+    }
+
+    // Detect final result (confidence displayed with %)
+    if (confidenceText && confidenceText.indexOf('%') !== -1 && !resultSent) {
+      resultSent = true;
+      var match = confidenceText.match(/(\d+)%/);
+      var confidence = match ? parseInt(match[1], 10) : 0;
+      window.parent.postMessage({ type: 'captcha:status', status: 'solved' }, '*');
+      window.parent.postMessage({ type: 'captcha:result', confidence: confidence, time: performance.now() }, '*');
+    }
+  }
+
+  // Observe status and confidence elements for changes
+  var observer = new MutationObserver(function () { checkStatus(); });
+  function observeEl(id) {
+    var el = document.getElementById(id);
+    if (el) observer.observe(el, { childList: true, characterData: true, subtree: true });
+  }
+  observeEl('status');
+  observeEl('confidence');
+
+  // Reset tracking when a new challenge starts
+  var refreshBtn2 = document.getElementById('refreshBtn');
+  if (refreshBtn2) {
+    refreshBtn2.addEventListener('click', function () {
+      statusSent = '';
+      resultSent = false;
+    });
+  }
 })();
 </script>
+</div><!-- end shell -->
 </body>
 </html>

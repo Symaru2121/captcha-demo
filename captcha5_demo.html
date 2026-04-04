@@ -1,0 +1,1176 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Captcha 5 — «Собери кости» Demo</title>
+  <style>
+    /* ================================================================
+       CSS RESET & BASE
+       ================================================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      background: #0F1117;
+      color: #C8C8CC;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                   "Helvetica Neue", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      min-height: 100vh;
+    }
+
+    /* ================================================================
+       LAYOUT SHELL
+       ================================================================ */
+    .shell {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    /* ================================================================
+       UNIFIED TOP BAR
+       ================================================================ */
+    /* ================================================================
+       UNIFIED TOP BAR
+       ================================================================ */
+    .top-bar {
+      background: #161822;
+      border-bottom: 1px solid #23263A;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      height: 56px;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .logo svg {
+      width: 28px;
+      height: 28px;
+    }
+
+    .logo-text {
+      font-size: 15px;
+      font-weight: 700;
+      color: #E4E4E8;
+      letter-spacing: -0.02em;
+    }
+
+    .logo-tag {
+      font-size: 10px;
+      font-weight: 600;
+      color: #E4E4E8;
+      background: #2A2D3E;
+      padding: 2px 6px;
+      border-radius: 4px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .separator {
+      width: 1px;
+      height: 24px;
+      background: #23263A;
+      flex-shrink: 0;
+    }
+
+    .complexity-control {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .complexity-label {
+      font-size: 12px;
+      color: #7A7B85;
+      white-space: nowrap;
+    }
+
+    .complexity-slider {
+      width: 160px;
+      height: 4px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: #23263A;
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .complexity-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #B8B9C1;
+      cursor: pointer;
+    }
+
+    .complexity-value {
+      font-size: 13px;
+      font-weight: 700;
+      color: #E4E4E8;
+      min-width: 28px;
+      text-align: center;
+    }
+
+    .refresh-btn {
+      margin-left: auto;
+      background: #1E2030;
+      color: #B8B9C1;
+      border: 1px solid #23263A;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      white-space: nowrap;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .refresh-btn:hover {
+      background: #23263A;
+      border-color: #3A3D52;
+    }
+
+
+    /* ================================================================
+       MAIN AREA
+       ================================================================ */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 24px;
+      gap: 16px;
+    }
+
+    #captchaCanvas {
+      display: block;
+      border-radius: 12px;
+      cursor: pointer;
+      touch-action: manipulation;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+    }
+
+    .status-line {
+      font-size: 14px;
+      color: #9A9EB3;
+      min-height: 22px;
+      text-align: center;
+    }
+
+    .result-line {
+      font-size: 16px;
+      font-weight: 600;
+      min-height: 24px;
+      text-align: center;
+    }
+
+    .result-correct { color: #ffffff; }
+    .result-wrong { color: #F87171; }
+    .result-confidence { color: #B0B4CA; }
+
+    /* ================================================================
+       FOOTER
+       ================================================================ */
+    .bottom-bar {
+      background: #161822;
+      border-top: 1px solid #23263A;
+      padding: 12px 24px;
+      font-size: 11px;
+      color: #555870;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+<div class="shell">
+
+  <div class="top-bar">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#B8B9C1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="9 11 12 14 22 4"></polyline>
+        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+      </svg>
+      <span class="logo-text">Captcha Sandbox</span>
+      <span class="logo-tag">DEMO</span>
+    </div>
+    <div class="separator"></div>
+    <div class="complexity-control">
+      <span class="complexity-label">Сложность:</span>
+      <input type="range" id="complexitySlider" class="complexity-slider" min="1" max="100" value="50">
+      <span class="complexity-value" id="complexityValue">50</span>
+    </div>
+    <button id="refreshBtn" class="refresh-btn" onclick="handleNewTask()">
+      <span style="margin-right:6px;">↻</span>
+      Новое задание
+    </button>
+  </div>
+
+
+  <!-- MAIN -->
+  <div class="main">
+    <canvas id="captchaCanvas"></canvas>
+    <div class="status-line" id="statusLine"></div>
+    <div class="result-line" id="resultLine"></div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="bottom-bar">Captcha Dice Demo — standalone file, no server required</div>
+
+</div>
+
+<script>
+// ============================================================================
+// DEMO SCRIPT — self-contained dice captcha with full rendering
+// ============================================================================
+(function() {
+  'use strict';
+
+  // ---- Constants ----
+  const CANVAS_CSS_W = 420;
+  const CANVAS_CSS_H = 260;
+  const OUTER_PAD = 14;
+  const LEFT_PANEL_W = 112;
+  const CENTER_GAP = 12;
+  const GRID_GAP = 10;
+  const GRID_COLS = 3;
+  const GRID_ROWS = 2;
+  const CARD_RADIUS = 14;
+
+  // Color schemes (8 palettes).
+  const COLOR_SCHEMES = [
+    { frontBase: '#F6F0E3', frontShade: '#E7DBC6', topTint: '#FFF8EF', sideShade: '#CFBEA6', edgeHL: '#FFFFFF', pip: '#3A2A22', shadow: 'rgba(50,32,20,0.20)' },
+    { frontBase: '#C94B4B', frontShade: '#A83A3A', topTint: '#E26A6A', sideShade: '#8A2A2A', edgeHL: '#F5B5B5', pip: '#FFF4F4', shadow: 'rgba(40,0,0,0.22)' },
+    { frontBase: '#4D75D9', frontShade: '#3B5EBA', topTint: '#6E92F0', sideShade: '#2F4D95', edgeHL: '#DDE7FF', pip: '#F6FAFF', shadow: 'rgba(0,12,48,0.22)' },
+    { frontBase: '#44A86E', frontShade: '#348557', topTint: '#68C58E', sideShade: '#2B6846', edgeHL: '#D9FFEA', pip: '#F7FFF9', shadow: 'rgba(0,40,18,0.20)' },
+    { frontBase: '#D9A33A', frontShade: '#B98724', topTint: '#F1C564', sideShade: '#916916', edgeHL: '#FFF0C7', pip: '#3B2A00', shadow: 'rgba(55,36,0,0.22)' },
+    { frontBase: '#8A67D1', frontShade: '#704CB1', topTint: '#A787EA', sideShade: '#57398E', edgeHL: '#F0E8FF', pip: '#FAF7FF', shadow: 'rgba(24,0,42,0.22)' },
+    { frontBase: '#79859C', frontShade: '#626D83', topTint: '#9AA4B8', sideShade: '#51586C', edgeHL: '#E8EDF7', pip: '#FFFFFF', shadow: 'rgba(0,0,0,0.24)' },
+    { frontBase: '#DB7C67', frontShade: '#B86351', topTint: '#F29E8B', sideShade: '#8F4A3C', edgeHL: '#FFE4DD', pip: '#FFF8F6', shadow: 'rgba(40,10,0,0.18)' },
+  ];
+
+  // Standard pip positions (100x100 local coords).
+  const PIP_POS = {
+    A1: [28, 32], A2: [46, 32], A3: [64, 32],
+    B1: [28, 50], B2: [46, 50], B3: [64, 50],
+    C1: [28, 68], C2: [46, 68], C3: [64, 68],
+  };
+
+  const FACE_PIPS = {
+    1: ['B2'],
+    2: ['C1', 'A3'],
+    3: ['C1', 'B2', 'A3'],
+    4: ['A1', 'A3', 'C1', 'C3'],
+    5: ['A1', 'A3', 'B2', 'C1', 'C3'],
+    6: ['A1', 'A3', 'B1', 'B3', 'C1', 'C3'],
+  };
+
+  const DICE_ANCHORS = {
+    1: [[0.50, 0.52]],
+    2: [[0.37, 0.50], [0.63, 0.50]],
+    3: [[0.33, 0.58], [0.50, 0.38], [0.67, 0.58]],
+  };
+
+  // ---- PRNG ----
+  function mulberry32(seed) {
+    let t = seed >>> 0;
+    return function() {
+      t += 0x6D2B79F5;
+      let r = Math.imul(t ^ (t >>> 15), 1 | t);
+      r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+      return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function hashSeed(a, b) {
+    return ((a * 2654435761 + b * 2246822519) >>> 0);
+  }
+
+  // ---- Complexity mapping ----
+  function profileForComplexity(level) {
+    if (level <= 10)  return { rounds:1, minDice:1, maxDice:1, minTarget:3, maxTarget:5,  minDiff:2, maxNear:0, noise:0 };
+    if (level <= 20)  return { rounds:1, minDice:1, maxDice:1, minTarget:3, maxTarget:6,  minDiff:2, maxNear:0, noise:0 };
+    if (level <= 30)  return { rounds:1, minDice:1, maxDice:2, minTarget:3, maxTarget:7,  minDiff:2, maxNear:0, noise:1 };
+    if (level <= 40)  return { rounds:2, minDice:1, maxDice:2, minTarget:5, maxTarget:8,  minDiff:1, maxNear:2, noise:1 };
+    if (level <= 50)  return { rounds:2, minDice:1, maxDice:2, minTarget:5, maxTarget:9,  minDiff:1, maxNear:2, noise:1 };
+    if (level <= 60)  return { rounds:2, minDice:1, maxDice:2, minTarget:6, maxTarget:10, minDiff:1, maxNear:2, noise:2 };
+    if (level <= 70)  return { rounds:3, minDice:2, maxDice:3, minTarget:7, maxTarget:11, minDiff:1, maxNear:3, noise:2 };
+    if (level <= 80)  return { rounds:3, minDice:2, maxDice:3, minTarget:8, maxTarget:14, minDiff:1, maxNear:3, noise:3 };
+    if (level <= 90)  return { rounds:3, minDice:2, maxDice:3, minTarget:8, maxTarget:16, minDiff:1, maxNear:4, noise:3 };
+    return                    { rounds:3, minDice:2, maxDice:3, minTarget:9, maxTarget:18, minDiff:1, maxNear:4, noise:4 };
+  }
+
+  // ---- Tuple enumeration ----
+  function enumerateTuples(minDice, maxDice) {
+    var tuples = [];
+    for (var d = minDice; d <= maxDice; d++) {
+      if (d === 1) {
+        for (var v = 1; v <= 6; v++) tuples.push({ count: 1, values: [v, 0, 0], sum: v });
+      } else if (d === 2) {
+        for (var a = 1; a <= 6; a++)
+          for (var b = a; b <= 6; b++)
+            tuples.push({ count: 2, values: [a, b, 0], sum: a + b });
+      } else if (d === 3) {
+        for (var a2 = 1; a2 <= 6; a2++)
+          for (var b2 = a2; b2 <= 6; b2++)
+            for (var c = b2; c <= 6; c++)
+              tuples.push({ count: 3, values: [a2, b2, c], sum: a2 + b2 + c });
+      }
+    }
+    return tuples;
+  }
+
+  // ---- Challenge generation (mirrors backend) ----
+  function generateChallenge(complexity) {
+    var level = Math.max(1, Math.min(100, complexity));
+    var profile = profileForComplexity(level);
+    var allTuples = enumerateTuples(profile.minDice, profile.maxDice);
+    var challengeSeed = (Math.random() * 0xFFFFFFFF) >>> 0;
+
+    var rounds = [];
+    var prevTarget = 0;
+    var prevCorrectIdx = 255;
+
+    for (var ri = 0; ri < profile.rounds; ri++) {
+      // Select target.
+      var candidates = [];
+      for (var t = profile.minTarget; t <= profile.maxTarget; t++) {
+        var hasCorrect = false;
+        var distractorCount = 0;
+        for (var j = 0; j < allTuples.length; j++) {
+          if (allTuples[j].sum === t) hasCorrect = true;
+          else {
+            var diff = Math.abs(allTuples[j].sum - t);
+            if (diff >= profile.minDiff) distractorCount++;
+          }
+        }
+        if (hasCorrect && distractorCount >= 5) candidates.push(t);
+      }
+      if (candidates.length === 0) candidates.push(Math.floor((profile.minTarget + profile.maxTarget) / 2));
+
+      // Anti-repetition.
+      if (prevTarget > 0 && candidates.length > 1) {
+        candidates = candidates.filter(function(c) { return c !== prevTarget; });
+        if (candidates.length === 0) candidates.push(prevTarget);
+      }
+      var target = candidates[Math.floor(Math.random() * candidates.length)];
+
+      // Generate correct card.
+      var matching = allTuples.filter(function(t2) { return t2.sum === target; });
+      var correctTuple = matching[Math.floor(Math.random() * matching.length)];
+
+      // Generate 5 distractors.
+      var pool = [];
+      for (var k = 0; k < allTuples.length; k++) {
+        var tup = allTuples[k];
+        if (tup.sum === target) continue;
+        var diff2 = Math.abs(tup.sum - target);
+        if (diff2 < profile.minDiff) continue;
+        pool.push({ tuple: tup, score: 100 });
+      }
+
+      var distractors = [];
+      var chosenSums = {};
+      for (var di = 0; di < 5 && pool.length > 0; di++) {
+        // Score.
+        for (var pi = 0; pi < pool.length; pi++) {
+          pool[pi].score = 100;
+          var s = pool[pi].tuple.sum;
+          if (chosenSums[s]) pool[pi].score -= 25 * chosenSums[s];
+          var d2 = Math.abs(s - target);
+          if (d2 === 1 && profile.maxNear > 0) {
+            var nearCount = 0;
+            for (var ss in chosenSums) {
+              if (Math.abs(parseInt(ss) - target) === 1) nearCount += chosenSums[ss];
+            }
+            if (nearCount < profile.maxNear) pool[pi].score += 12;
+          }
+          if (di > 0 && pool[pi].tuple.count !== distractors[di - 1].count) pool[pi].score += 18;
+        }
+
+        var totalScore = 0;
+        for (var pi2 = 0; pi2 < pool.length; pi2++) {
+          totalScore += Math.max(1, pool[pi2].score);
+        }
+        var r = Math.floor(Math.random() * totalScore);
+        var cum = 0;
+        var chosen = 0;
+        for (var pi3 = 0; pi3 < pool.length; pi3++) {
+          cum += Math.max(1, pool[pi3].score);
+          if (r < cum) { chosen = pi3; break; }
+        }
+
+        distractors.push(pool[chosen].tuple);
+        chosenSums[pool[chosen].tuple.sum] = (chosenSums[pool[chosen].tuple.sum] || 0) + 1;
+        pool.splice(chosen, 1);
+      }
+
+      // Place cards.
+      var correctIdx = Math.floor(Math.random() * 6);
+      if (prevCorrectIdx < 6 && correctIdx === prevCorrectIdx) {
+        correctIdx = (correctIdx + 1 + Math.floor(Math.random() * 5)) % 6;
+      }
+
+      var cards = [];
+      var dIdx = 0;
+      for (var ci = 0; ci < 6; ci++) {
+        var tuple;
+        if (ci === correctIdx) {
+          tuple = correctTuple;
+        } else {
+          tuple = distractors[dIdx++];
+        }
+        cards.push({
+          diceCount: tuple.count,
+          diceValues: tuple.values.slice(),
+          rotationQ: Math.floor(Math.random() * 256),
+          colorScheme: Math.floor(Math.random() * 8),
+          dotStyle: Math.floor(Math.random() * 4),
+          shadowDir: Math.floor(Math.random() * 4),
+          sizeVariant: Math.floor(Math.random() * 256),
+        });
+      }
+
+      var roundSeed = (Math.random() * 0xFFFFFFFF) >>> 0;
+      rounds.push({
+        target: target,
+        correctIdx: correctIdx,
+        cards: cards,
+        roundSeed: roundSeed,
+      });
+
+      prevTarget = target;
+      prevCorrectIdx = correctIdx;
+    }
+
+    return {
+      complexity: level,
+      rounds: rounds,
+      challengeSeed: challengeSeed,
+    };
+  }
+
+  // ---- Drawing helpers ----
+  function roundedRectPath(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.arcTo(x + w, y, x + w, y + r, r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+    ctx.lineTo(x + r, y + h);
+    ctx.arcTo(x, y + h, x, y + h - r, r);
+    ctx.lineTo(x, y + r);
+    ctx.arcTo(x, y, x + r, y, r);
+    ctx.closePath();
+  }
+
+  function drawDie(ctx, faceValue, dieSize, scheme, dotStyle, shadowDir, rng, noiseLevel) {
+    var s = dieSize / 100;
+    var dx = (5 + rng() * 4) * s;
+    var dy = (8 + rng() * 6) * s;
+    var sx = (8 + rng() * 6) * s;
+    var dy2 = (3 + rng() * 4) * s;
+
+    var fx = 14 * s, fy = 18 * s, fw = 64 * s, fh = 64 * s;
+    var fr = 11 * s;
+
+    // Shadow.
+    var shadowOffX = (shadowDir === 1 || shadowDir === 3) ? -3 * s : 4 * s;
+    var shadowOffY = shadowDir === 2 ? 3 * s : 5 * s;
+    ctx.save();
+    ctx.shadowColor = scheme.shadow;
+    ctx.shadowBlur = (4 + rng() * 6) * s;
+    ctx.shadowOffsetX = shadowOffX;
+    ctx.shadowOffsetY = shadowOffY;
+    ctx.fillStyle = 'rgba(0,0,0,0.01)';
+    roundedRectPath(ctx, fx, fy, fw, fh, fr);
+    ctx.fill();
+    ctx.restore();
+
+    // Top face.
+    ctx.fillStyle = scheme.topTint;
+    ctx.beginPath();
+    ctx.moveTo(fx, fy);
+    ctx.lineTo(fx + fw, fy);
+    ctx.lineTo(fx + fw - dx, fy - dy);
+    ctx.lineTo(fx - dx, fy - dy);
+    ctx.closePath();
+    ctx.fill();
+
+    // Side face.
+    ctx.fillStyle = scheme.sideShade;
+    ctx.beginPath();
+    ctx.moveTo(fx + fw, fy);
+    ctx.lineTo(fx + fw + sx, fy - dy2);
+    ctx.lineTo(fx + fw + sx, fy + fh - dy2);
+    ctx.lineTo(fx + fw, fy + fh);
+    ctx.closePath();
+    ctx.fill();
+
+    // Front face.
+    ctx.fillStyle = scheme.frontBase;
+    roundedRectPath(ctx, fx, fy, fw, fh, fr);
+    ctx.fill();
+
+    // Edge highlight.
+    ctx.strokeStyle = scheme.edgeHL;
+    ctx.lineWidth = 1.2 * s;
+    ctx.globalAlpha = 0.5;
+    roundedRectPath(ctx, fx, fy, fw, fh, fr);
+    ctx.stroke();
+    ctx.globalAlpha = 1.0;
+
+    // Pips.
+    var pips = FACE_PIPS[faceValue] || [];
+    var pipBaseRadius = dieSize < 40 ? (3.8 + rng() * 0.5) : dieSize < 60 ? (4.2 + rng() * 0.7) : (4.8 + rng() * 0.8);
+    var pipR = pipBaseRadius * s;
+
+    ctx.fillStyle = scheme.pip;
+    for (var p = 0; p < pips.length; p++) {
+      var pos = PIP_POS[pips[p]];
+      var jitter = noiseLevel >= 2 ? 1.2 : 0.8;
+      var jx = (rng() - 0.5) * jitter * s;
+      var jy = (rng() - 0.5) * jitter * s;
+      var cx = pos[0] * s + jx;
+      var cy = pos[1] * s + jy;
+      var pr = pipR * (1 + (rng() - 0.5) * 0.16);
+
+      ctx.beginPath();
+      if (dotStyle === 0) {
+        ctx.arc(cx, cy, pr, 0, Math.PI * 2);
+      } else if (dotStyle === 1) {
+        var half = pr * 0.85;
+        roundedRectPath(ctx, cx - half, cy - half, half * 2, half * 2, half * 0.3);
+      } else if (dotStyle === 2) {
+        ctx.moveTo(cx, cy - pr);
+        ctx.lineTo(cx + pr, cy);
+        ctx.lineTo(cx, cy + pr);
+        ctx.lineTo(cx - pr, cy);
+        ctx.closePath();
+      } else {
+        ctx.arc(cx, cy, pr, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(cx, cy, pr * 1.3, 0, Math.PI * 2);
+        ctx.strokeStyle = scheme.pip;
+        ctx.lineWidth = 0.6 * s;
+        ctx.globalAlpha = 0.3;
+        ctx.stroke();
+        ctx.globalAlpha = 1.0;
+        ctx.fillStyle = scheme.pip;
+        continue;
+      }
+      ctx.fill();
+    }
+
+    // Speckles.
+    if (noiseLevel >= 1) {
+      var speckleCount = 12 + Math.floor(rng() * noiseLevel * 8);
+      for (var i = 0; i < speckleCount; i++) {
+        var sx2 = fx + rng() * fw;
+        var sy2 = fy + rng() * fh;
+        var sr = (0.5 + rng() * 1.5) * s;
+        var alpha = 0.03 + rng() * 0.07;
+        ctx.fillStyle = 'rgba(' + Math.floor(rng() * 80) + ',' + Math.floor(rng() * 80) + ',' + Math.floor(rng() * 80) + ',' + alpha + ')';
+        ctx.beginPath();
+        ctx.arc(sx2, sy2, sr, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Scratches.
+    if (noiseLevel >= 2) {
+      var scratchCount = 1 + Math.floor(rng() * (noiseLevel - 1) * 2);
+      for (var i2 = 0; i2 < scratchCount; i2++) {
+        ctx.beginPath();
+        ctx.moveTo(fx + rng() * fw, fy + rng() * fh);
+        ctx.lineTo(fx + rng() * fw, fy + rng() * fh);
+        ctx.strokeStyle = 'rgba(150,150,150,' + (0.04 + rng() * 0.08) + ')';
+        ctx.lineWidth = 0.4 * s;
+        ctx.stroke();
+      }
+    }
+
+    // Gradient imperfection.
+    if (noiseLevel >= 2) {
+      var grd = ctx.createLinearGradient(fx, fy, fx + fw, fy + fh);
+      var lumShift = 0.02 + rng() * 0.06;
+      grd.addColorStop(0, 'rgba(255,255,255,' + lumShift + ')');
+      grd.addColorStop(1, 'rgba(0,0,0,' + lumShift + ')');
+      ctx.fillStyle = grd;
+      roundedRectPath(ctx, fx, fy, fw, fh, fr);
+      ctx.fill();
+    }
+  }
+
+  // ---- Application state ----
+  var state = {
+    complexity: 50,
+    challenge: null,
+    currentRound: 0,
+    correctRounds: 0,
+    roundTimings: [],
+    startedAt: 0,
+    finished: false,
+    selectedLocked: false,
+    hoverCardIndex: -1,
+    feedbackState: 'idle',
+    feedbackCardIndex: -1,
+    glowPhase: 0,
+    animFrameId: 0,
+  };
+
+  var canvas, ctx, dpr;
+  var cardRects = [];
+
+  function computeCardRects() {
+    var d = dpr;
+    var pad = OUTER_PAD * d;
+    var leftW = LEFT_PANEL_W * d;
+    var gap = CENTER_GAP * d;
+    var gridGap = GRID_GAP * d;
+
+    var gridX = pad + leftW + gap;
+    var gridY = pad;
+    var gridW = CANVAS_CSS_W * d - gridX - pad;
+    var gridH = CANVAS_CSS_H * d - pad * 2;
+
+    var cardW = (gridW - gridGap * (GRID_COLS - 1)) / GRID_COLS;
+    var cardH = (gridH - gridGap * (GRID_ROWS - 1)) / GRID_ROWS;
+
+    var rects = [];
+    for (var row = 0; row < GRID_ROWS; row++) {
+      for (var col = 0; col < GRID_COLS; col++) {
+        rects.push({
+          x: gridX + col * (cardW + gridGap),
+          y: gridY + row * (cardH + gridGap),
+          w: cardW,
+          h: cardH,
+        });
+      }
+    }
+    return rects;
+  }
+
+  function hitTestCard(px, py) {
+    for (var i = 0; i < cardRects.length; i++) {
+      var r = cardRects[i];
+      if (px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h) return i;
+    }
+    return -1;
+  }
+
+  function getCanvasPoint(evt) {
+    var rect = canvas.getBoundingClientRect();
+    return {
+      x: (evt.clientX - rect.left) * (canvas.width / rect.width),
+      y: (evt.clientY - rect.top) * (canvas.height / rect.height),
+    };
+  }
+
+  // ---- Rendering ----
+  function renderFrame() {
+    if (!state.challenge) return;
+    var ch = state.challenge;
+    var round = ch.rounds[state.currentRound];
+    if (!round) return;
+
+    var d = dpr;
+    var w = canvas.width;
+    var h = canvas.height;
+
+    // Clear.
+    ctx.fillStyle = '#F0F2F5';
+    ctx.fillRect(0, 0, w, h);
+
+    // Left panel.
+    drawLeftPanel(ctx, round, ch, d);
+
+    // Cards.
+    for (var i = 0; i < 6; i++) {
+      drawCard(ctx, round.cards[i], cardRects[i], i, round, d);
+    }
+  }
+
+  function drawLeftPanel(ctx, round, ch, d) {
+    var pad = OUTER_PAD * d;
+    var panelW = LEFT_PANEL_W * d;
+    var panelH = CANVAS_CSS_H * d - pad * 2;
+    var px = pad;
+    var py = pad;
+
+    var grd = ctx.createLinearGradient(px, py, px, py + panelH);
+    grd.addColorStop(0, '#1A1D2E');
+    grd.addColorStop(1, '#252840');
+    ctx.fillStyle = grd;
+    roundedRectPath(ctx, px, py, panelW, panelH, 12 * d);
+    ctx.fill();
+
+    // Round indicator.
+    if (ch.rounds.length > 1) {
+      ctx.font = (11 * d) + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.fillStyle = '#8A8FA6';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText('Раунд ' + (state.currentRound + 1) + '/' + ch.rounds.length, px + panelW / 2, py + 12 * d);
+    }
+
+    // Title.
+    ctx.font = '600 ' + (13 * d) + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.fillStyle = '#C8CBD9';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    var titleY = ch.rounds.length > 1 ? py + 28 * d : py + 16 * d;
+    ctx.fillText('Собери кости', px + panelW / 2, titleY);
+
+    // Target number with glow.
+    var targetY = titleY + 24 * d;
+    var targetCenterY = targetY + 28 * d;
+    state.glowPhase += 0.03;
+    var glowAlpha = 0.10 + 0.12 * Math.sin(state.glowPhase);
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(100,140,255,' + glowAlpha + ')';
+    ctx.shadowBlur = (8 + 6 * Math.sin(state.glowPhase)) * d;
+    ctx.font = '700 ' + (52 * d) + 'px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.fillStyle = '#FFFFFF';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(round.target), px + panelW / 2, targetCenterY);
+    ctx.restore();
+
+    // Hint text.
+    var hintY = targetCenterY + 36 * d;
+    ctx.font = (10 * d) + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.fillStyle = '#6B6F84';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    var hint = 'Нажми на карточку, где сумма точек равна числу';
+    var words = hint.split(' ');
+    var line = '';
+    var lines = [];
+    var maxW = panelW - 16 * d;
+    for (var wi = 0; wi < words.length; wi++) {
+      var test = line ? line + ' ' + words[wi] : words[wi];
+      if (ctx.measureText(test).width > maxW && line) {
+        lines.push(line);
+        line = words[wi];
+      } else {
+        line = test;
+      }
+    }
+    if (line) lines.push(line);
+    for (var li = 0; li < lines.length; li++) {
+      ctx.fillText(lines[li], px + panelW / 2, hintY + li * 13 * d);
+    }
+  }
+
+  function drawCard(ctx, card, rect, cardIdx, round, d) {
+    var r = CARD_RADIUS * d;
+    var scheme = COLOR_SCHEMES[card.colorScheme % 8];
+
+    var isHovered = state.hoverCardIndex === cardIdx && state.feedbackState === 'idle' && !state.selectedLocked;
+    var isFeedbackTarget = state.feedbackCardIndex === cardIdx;
+    var isCorrectFlash = isFeedbackTarget && state.feedbackState === 'correct';
+    var isWrongFlash = isFeedbackTarget && state.feedbackState === 'wrong';
+    var drawY = isHovered ? rect.y - 2 * d : rect.y;
+
+    // Card background.
+    var bgGrd = ctx.createLinearGradient(rect.x, drawY, rect.x, drawY + rect.h);
+    bgGrd.addColorStop(0, '#FAFBFF');
+    bgGrd.addColorStop(1, '#F0F1F5');
+    ctx.fillStyle = bgGrd;
+    roundedRectPath(ctx, rect.x, drawY, rect.w, rect.h, r);
+    ctx.fill();
+
+    // Border.
+    ctx.strokeStyle = isHovered ? '#B0B8D0' : '#DDE1ED';
+    ctx.lineWidth = (isHovered ? 1.8 : 1.0) * d;
+    roundedRectPath(ctx, rect.x, drawY, rect.w, rect.h, r);
+    ctx.stroke();
+
+    // Per-card RNG.
+    var cardRng = mulberry32(hashSeed(round.roundSeed, cardIdx));
+
+    // Dice layout.
+    var diceCount = card.diceCount;
+    var anchors = DICE_ANCHORS[diceCount] || DICE_ANCHORS[1];
+    var cardMinDim = Math.min(rect.w, rect.h);
+
+    var sizeScale = 0.90 + card.sizeVariant * 0.20 / 255;
+    var baseDiePercent;
+    if (diceCount === 1) baseDiePercent = 0.52 + cardRng() * 0.14;
+    else if (diceCount === 2) baseDiePercent = 0.42 + cardRng() * 0.10;
+    else baseDiePercent = 0.34 + cardRng() * 0.10;
+    var dieSize = cardMinDim * baseDiePercent * sizeScale;
+
+    var rotDeg = -15 + card.rotationQ * 30 / 255;
+    var noiseLevel = 0;
+    if (state.complexity > 20) noiseLevel = 1;
+    if (state.complexity > 50) noiseLevel = 2;
+    if (state.complexity > 70) noiseLevel = 3;
+    if (state.complexity > 85) noiseLevel = 4;
+
+    for (var di = 0; di < diceCount; di++) {
+      var faceValue = card.diceValues[di];
+      if (faceValue < 1 || faceValue > 6) continue;
+      var anchor = anchors[di];
+      var ax = rect.x + anchor[0] * rect.w;
+      var ay = drawY + anchor[1] * rect.h;
+      var jitterPx = diceCount === 1 ? 6 : diceCount === 2 ? 8 : 5;
+      var tx = (cardRng() - 0.5) * jitterPx * 2 * d;
+      var ty = (cardRng() - 0.5) * jitterPx * 2 * d;
+      var dieRotOffset = (cardRng() - 0.5) * 4;
+      var totalRot = rotDeg + dieRotOffset;
+      var dieRng = mulberry32(hashSeed(hashSeed(round.roundSeed, cardIdx), di));
+
+      ctx.save();
+      ctx.translate(ax + tx, ay + ty);
+      ctx.rotate(totalRot * Math.PI / 180);
+      ctx.translate(-dieSize / 2, -dieSize / 2);
+      drawDie(ctx, faceValue, dieSize, scheme, card.dotStyle, card.shadowDir, dieRng, noiseLevel);
+      ctx.restore();
+    }
+
+    // Feedback overlays.
+    if (isCorrectFlash) {
+      ctx.fillStyle = 'rgba(40,200,80,0.25)';
+      roundedRectPath(ctx, rect.x, drawY, rect.w, rect.h, r);
+      ctx.fill();
+      ctx.strokeStyle = '#28C850';
+      ctx.lineWidth = 2.5 * d;
+      roundedRectPath(ctx, rect.x, drawY, rect.w, rect.h, r);
+      ctx.stroke();
+    } else if (isWrongFlash) {
+      ctx.fillStyle = 'rgba(220,50,50,0.20)';
+      roundedRectPath(ctx, rect.x, drawY, rect.w, rect.h, r);
+      ctx.fill();
+      ctx.strokeStyle = '#DC3232';
+      ctx.lineWidth = 2.5 * d;
+      roundedRectPath(ctx, rect.x, drawY, rect.w, rect.h, r);
+      ctx.stroke();
+    }
+
+    if (state.feedbackState === 'transition') {
+      ctx.fillStyle = 'rgba(240,242,245,0.6)';
+      roundedRectPath(ctx, rect.x, drawY, rect.w, rect.h, r);
+      ctx.fill();
+    }
+  }
+
+  // ---- Confidence scoring (mirrors backend) ----
+  function roundTimingPenalty(elapsedMs) {
+    if (elapsedMs < 350) return 12;
+    if (elapsedMs < 700) return 8;
+    if (elapsedMs < 1000) return 4;
+    if (elapsedMs <= 8000) return 0;
+    if (elapsedMs <= 15000) return 2;
+    if (elapsedMs <= 30000) return 4;
+    return 6;
+  }
+
+  function computeConfidence() {
+    var total = state.challenge.rounds.length;
+    var correct = state.correctRounds;
+    if (correct === 0) return 0;
+
+    var timingPenalty = 0;
+    for (var i = 0; i < state.roundTimings.length; i++) {
+      timingPenalty += roundTimingPenalty(state.roundTimings[i]);
+    }
+
+    if (correct === total) {
+      if (timingPenalty > 25) timingPenalty = 25;
+      var base = 80 - timingPenalty;
+      if (base < 55) base = 55;
+      if (base > 80) base = 80;
+      return base;
+    }
+
+    if (timingPenalty > 18) timingPenalty = 18;
+    var frac = correct / total;
+    var base2 = Math.round(80 * frac * 0.7) - Math.floor(timingPenalty / 2);
+    if (base2 < 1) base2 = 1;
+    if (base2 > 56) base2 = 56;
+    return base2;
+  }
+
+  // ---- Click handling ----
+  function handleCardClick(cardIdx) {
+    if (state.selectedLocked || state.finished || !state.challenge) return;
+    state.selectedLocked = true;
+
+    var round = state.challenge.rounds[state.currentRound];
+    var elapsedMs = performance.now() - state.startedAt;
+    state.roundTimings.push(elapsedMs);
+
+    var isCorrect = cardIdx === round.correctIdx;
+    if (isCorrect) state.correctRounds++;
+
+    state.feedbackCardIndex = cardIdx;
+    state.feedbackState = isCorrect ? 'correct' : 'wrong';
+
+    var statusEl = document.getElementById('statusLine');
+    if (statusEl) statusEl.textContent = isCorrect ? 'Верно!' : 'Неверно';
+
+    setTimeout(function() {
+      var isFinal = state.currentRound >= state.challenge.rounds.length - 1;
+      if (isFinal) {
+        state.finished = true;
+        state.feedbackState = 'idle';
+        // Show final confidence.
+        var confidence = computeConfidence();
+        var resultEl = document.getElementById('resultLine');
+        if (resultEl) {
+          resultEl.className = 'result-line result-confidence';
+          resultEl.textContent = 'Итоговая уверенность: ' + confidence + '%';
+        }
+        if (statusEl) {
+          statusEl.textContent = state.correctRounds + ' из ' + state.challenge.rounds.length + ' верно';
+        }
+        // Stop animation after one more render.
+        renderFrame();
+        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        cancelAnimationFrame(state.animFrameId);
+      } else {
+        // Transition to next round.
+        state.feedbackState = 'transition';
+        renderFrame();
+
+        setTimeout(function() {
+          state.currentRound++;
+          state.selectedLocked = false;
+          state.feedbackState = 'idle';
+          state.feedbackCardIndex = -1;
+          state.hoverCardIndex = -1;
+          state.startedAt = performance.now();
+          if (statusEl) statusEl.textContent = '';
+          renderFrame();
+        }, 180);
+      }
+    }, 250);
+  }
+
+  // ---- Animation loop ----
+  function animLoop() {
+    renderFrame();
+    state.animFrameId = requestAnimationFrame(animLoop);
+  }
+
+  // ---- Initialization ----
+  function initCanvas() {
+    canvas = document.getElementById('captchaCanvas');
+    ctx = canvas.getContext('2d');
+    dpr = window.devicePixelRatio || 1;
+
+    canvas.width = CANVAS_CSS_W * dpr;
+    canvas.height = CANVAS_CSS_H * dpr;
+    canvas.style.width = CANVAS_CSS_W + 'px';
+    canvas.style.height = CANVAS_CSS_H + 'px';
+
+    cardRects = computeCardRects();
+  }
+
+  function newChallenge() {
+    var complexity = parseInt(document.getElementById('complexitySlider').value) || 50;
+    state.complexity = complexity;
+    state.challenge = generateChallenge(complexity);
+    state.currentRound = 0;
+    state.correctRounds = 0;
+    state.roundTimings = [];
+    state.startedAt = performance.now();
+    state.finished = false;
+    state.selectedLocked = false;
+    state.hoverCardIndex = -1;
+    state.feedbackState = 'idle';
+    state.feedbackCardIndex = -1;
+
+    document.getElementById('statusLine').textContent = '';
+    document.getElementById('resultLine').textContent = '';
+    document.getElementById('resultLine').className = 'result-line';
+
+    // Cancel any existing animation loop and start a new one.
+    if (state.animFrameId) cancelAnimationFrame(state.animFrameId);
+    animLoop();
+  }
+
+  function init() {
+    initCanvas();
+
+    // Slider.
+    var slider = document.getElementById('complexitySlider');
+    var badge = document.getElementById('complexityValue');
+    slider.addEventListener('input', function() {
+      if (badge) badge.textContent = slider.value;
+    });
+
+    // New challenge button.
+    document.getElementById('refreshBtn').addEventListener('click', newChallenge);
+
+    // Pointer events.
+    canvas.addEventListener('pointermove', function(evt) {
+      if (state.selectedLocked || !state.challenge || state.finished) return;
+      var pt = getCanvasPoint(evt);
+      var idx = hitTestCard(pt.x, pt.y);
+      if (idx !== state.hoverCardIndex) {
+        state.hoverCardIndex = idx;
+      }
+    });
+
+    canvas.addEventListener('pointerleave', function() {
+      state.hoverCardIndex = -1;
+    });
+
+    canvas.addEventListener('pointerdown', function(evt) {
+      if (state.selectedLocked || !state.challenge || state.finished) return;
+      var pt = getCanvasPoint(evt);
+      var cardIdx = hitTestCard(pt.x, pt.y);
+      if (cardIdx >= 0) {
+        handleCardClick(cardIdx);
+      }
+    });
+
+    // Start with initial challenge.
+    newChallenge();
+
+    // Expose global handler for top bar button onclick
+    window.handleNewTask = newChallenge;
+  }
+
+  // Boot.
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+})();
+</script>
+
+<!-- Parent-iframe integration: incoming commands + outgoing event forwarding -->
+<script>
+(function () {
+  // Only activate when running inside an iframe
+  if (window.parent === window) return;
+
+  // --- Incoming message handler ---
+  window.addEventListener('message', function (e) {
+    if (!e.data || !e.data.type) return;
+
+    if (e.data.type === 'setComplexity') {
+      var slider = document.getElementById('complexitySlider');
+      var badge  = document.getElementById('complexityValue');
+      if (slider && e.data.value !== undefined) {
+        slider.value = Math.max(1, Math.min(100, e.data.value));
+        if (badge) if (badge) badge.textContent = slider.value;
+      }
+    } else if (e.data.type === 'reset') {
+      // Trigger new challenge via the button's click handler
+      var btn = document.getElementById('refreshBtn');
+      if (btn) btn.click();
+    }
+  });
+
+  // --- Outgoing: throttled mousemove forwarding ---
+  var lastMoveAt = 0;
+  var MOVE_INTERVAL_MS = 40; // ~25 fps throttle
+
+  function postToParent(type, e) {
+    window.parent.postMessage({
+      type: type,
+      clientX: e.clientX,
+      clientY: e.clientY,
+      timestamp: performance.now()
+    }, '*');
+  }
+
+  document.addEventListener('mousemove', function (e) {
+    var now = performance.now();
+    if (now - lastMoveAt < MOVE_INTERVAL_MS) return;
+    lastMoveAt = now;
+    postToParent('captcha:mouseMove', e);
+  }, { passive: true });
+
+  // --- Outgoing: click forwarding (capture phase) ---
+  document.addEventListener('click', function (e) {
+    postToParent('captcha:click', e);
+  }, true);
+
+  // --- Outgoing: captcha:status and captcha:result ---
+  // We hook into the DOM status/result elements via MutationObserver
+  // to detect state changes without modifying the main IIFE.
+  var statusSent = '';
+  var resultSent = false;
+
+  function checkStatus() {
+    var statusEl  = document.getElementById('statusLine');
+    var resultEl  = document.getElementById('resultLine');
+    if (!statusEl) return;
+
+    var statusText = statusEl.textContent || '';
+    var resultText = resultEl ? resultEl.textContent || '' : '';
+
+    // Detect solving state (non-empty status without final result)
+    if (statusText && !resultText && statusSent !== 'solving') {
+      statusSent = 'solving';
+      window.parent.postMessage({ type: 'captcha:status', status: 'solving' }, '*');
+    }
+
+    // Detect final result
+    if (resultText && resultText.indexOf('%') !== -1 && !resultSent) {
+      resultSent = true;
+      var match = resultText.match(/(\d+)%/);
+      var confidence = match ? parseInt(match[1], 10) : 0;
+      window.parent.postMessage({ type: 'captcha:status', status: 'solved' }, '*');
+      window.parent.postMessage({ type: 'captcha:result', confidence: confidence, time: performance.now() }, '*');
+    }
+  }
+
+  // Observe status and result elements for changes
+  var observer = new MutationObserver(function () { checkStatus(); });
+  function observeEl(id) {
+    var el = document.getElementById(id);
+    if (el) observer.observe(el, { childList: true, characterData: true, subtree: true });
+  }
+  observeEl('statusLine');
+  observeEl('resultLine');
+
+  // Reset tracking when new challenge starts (observe badge changes)
+  var badgeEl = document.getElementById('complexityValue');
+  if (badgeEl) {
+    new MutationObserver(function () {
+      statusSent = '';
+      resultSent = false;
+    }).observe(badgeEl, { childList: true, characterData: true, subtree: true });
+  }
+
+  // Also reset on newBtn click
+  var newBtn = document.getElementById('refreshBtn');
+  if (newBtn) {
+    newBtn.addEventListener('click', function () {
+      statusSent = '';
+      resultSent = false;
+    });
+  }
+})();
+</script>
+</body>
+</html>

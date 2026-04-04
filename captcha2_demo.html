@@ -5,17 +5,146 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Impossible Reality Demo</title>
   <style>
+    /* Box-sizing reset */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ================================================================
+       UNIFIED TOP BAR
+       ================================================================ */
+    .top-bar {
+      background: #161822;
+      border-bottom: 1px solid #23263A;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      height: 56px;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .logo svg {
+      width: 28px;
+      height: 28px;
+    }
+
+    .logo-text {
+      font-size: 15px;
+      font-weight: 700;
+      color: #E4E4E8;
+      letter-spacing: -0.02em;
+    }
+
+    .logo-tag {
+      font-size: 10px;
+      font-weight: 600;
+      color: #E4E4E8;
+      background: #2A2D3E;
+      padding: 2px 6px;
+      border-radius: 4px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .separator {
+      width: 1px;
+      height: 24px;
+      background: #23263A;
+      flex-shrink: 0;
+    }
+
+    .complexity-control {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .complexity-label {
+      font-size: 12px;
+      color: #7A7B85;
+      white-space: nowrap;
+    }
+
+    .complexity-slider {
+      width: 160px;
+      height: 4px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: #23263A;
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .complexity-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #B8B9C1;
+      cursor: pointer;
+    }
+
+    .complexity-value {
+      font-size: 13px;
+      font-weight: 700;
+      color: #E4E4E8;
+      min-width: 28px;
+      text-align: center;
+    }
+
+    .refresh-btn {
+      margin-left: auto;
+      background: #1E2030;
+      color: #B8B9C1;
+      border: 1px solid #23263A;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      white-space: nowrap;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .refresh-btn:hover {
+      background: #23263A;
+      border-color: #3A3D52;
+    }
+
     /* Reset and base layout */
     html, body {
       margin: 0;
       padding: 0;
       width: 100%;
       min-height: 100%;
-      background: #ecebe7;
+      background: #0F1117;
       font-family: Arial, sans-serif;
     }
 
     body {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    .shell {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    .main-area {
+      flex: 1;
       display: flex;
       justify-content: center;
       align-items: flex-start;
@@ -45,51 +174,18 @@
       height: 100%;
     }
 
-    /* Controls panel */
-    #controls {
-      margin-top: 14px;
-      background: #ffffff;
-      border: 1px solid #dad7d1;
-      border-radius: 16px;
-      padding: 14px 16px 16px;
-      box-shadow: 0 6px 16px rgba(0,0,0,0.05);
-    }
 
-    .controls-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-      justify-content: space-between;
-    }
-
-    .controls-row label {
-      color: #222;
-      font-size: 14px;
-      font-weight: 600;
-    }
-
-    .controls-buttons {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    #complexityRange {
-      width: 100%;
-      margin-top: 12px;
-      accent-color: #01696F;
-    }
 
     #metaRow {
       margin-top: 10px;
       display: flex;
       justify-content: space-between;
       gap: 10px;
-      color: #666;
+      color: #999;
       font-size: 13px;
       flex-wrap: wrap;
       align-items: center;
+      padding: 8px 0;
     }
 
     #tierBadge {
@@ -103,36 +199,7 @@
       font-size: 13px;
     }
 
-    button {
-      appearance: none;
-      border: 1px solid #d0d0d0;
-      background: #fff;
-      color: #222;
-      border-radius: 10px;
-      padding: 9px 14px;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
-    }
 
-    button:hover {
-      background: #f7f7f7;
-      border-color: #b8b8b8;
-    }
-
-    button:active {
-      background: #f0f0f0;
-    }
-
-    button:focus-visible {
-      outline: 2px solid rgba(66,133,244,0.5);
-      outline-offset: 2px;
-    }
-
-    button[hidden] {
-      display: none;
-    }
 
     /* Responsive adjustments */
     @media (max-width: 560px) {
@@ -142,37 +209,42 @@
       #canvas-shell {
         min-height: 360px;
       }
-      .controls-row {
-        flex-direction: column;
-        align-items: stretch;
-      }
-      .controls-buttons {
-        justify-content: stretch;
-      }
-      .controls-buttons button {
-        flex: 1;
-      }
+
     }
   </style>
 </head>
 <body>
-  <div id="demo-root">
-    <div id="canvas-shell">
-      <canvas id="captchaCanvas" aria-label="Captcha Impossible Reality"></canvas>
+<div class="shell">
+  <div class="top-bar">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#B8B9C1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="9 11 12 14 22 4"></polyline>
+        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+      </svg>
+      <span class="logo-text">Captcha Sandbox</span>
+      <span class="logo-tag">DEMO</span>
     </div>
+    <div class="separator"></div>
+    <div class="complexity-control">
+      <span class="complexity-label">Сложность:</span>
+      <input type="range" id="complexitySlider" class="complexity-slider" min="1" max="100" value="50">
+      <span class="complexity-value" id="complexityValue">50</span>
+    </div>
+    <button id="refreshBtn" class="refresh-btn" onclick="handleNewTask()">
+      <span style="margin-right:6px;">↻</span>
+      Новое задание
+    </button>
+  </div>
 
-    <div id="controls">
-      <div class="controls-row">
-        <label for="complexityRange">Сложность: <span id="complexityValue">50</span></label>
-        <div class="controls-buttons">
-          <button id="refreshBtn" type="button">Обновить</button>
-          <button id="newTaskBtn" type="button" hidden>Новое задание</button>
-        </div>
+  <div class="main-area">
+    <div id="demo-root">
+      <div id="canvas-shell">
+        <canvas id="captchaCanvas" aria-label="Captcha Impossible Reality"></canvas>
       </div>
-      <input id="complexityRange" type="range" min="1" max="100" value="50" step="1">
+
       <div id="metaRow">
         <span id="tierBadge">Medium</span>
-        <span id="confidenceLabel">Уверенность: —</span>
+        <span id="confidenceLabel">Уверенность: \u2014</span>
       </div>
     </div>
   </div>
@@ -519,9 +591,9 @@
       // Cache DOM references
       this.canvas = document.getElementById('captchaCanvas');
       this.ctx = this.canvas.getContext('2d');
-      this.rangeEl = document.getElementById('complexityRange');
+      this.rangeEl = document.getElementById('complexitySlider');
       this.refreshBtn = document.getElementById('refreshBtn');
-      this.newTaskBtn = document.getElementById('newTaskBtn');
+      this.newTaskBtn = document.getElementById('refreshBtn');
       this.complexityValueEl = document.getElementById('complexityValue');
       this.tierBadgeEl = document.getElementById('tierBadge');
       this.confidenceLabelEl = document.getElementById('confidenceLabel');
@@ -655,7 +727,7 @@
       this.state.renderStartTs = performance.now();
 
       // Hide new task button
-      this.newTaskBtn.hidden = true;
+      // newTaskBtn hidden toggle removed (now in top bar)
 
       // Build card layout and render
       this.buildCards();
@@ -803,7 +875,7 @@
         // Correct answer
         this.state.correctIndex = idx;
         this.state.resultPhase = 'resolved';
-        this.newTaskBtn.hidden = false;
+        // newTaskBtn hidden toggle removed (now in top bar)
         this.updateMetaUI();
         this.render();
         return;
@@ -1148,16 +1220,40 @@
     } else {
       app.run();
     }
-  </script>
+  
+// Global handler for unified top bar button
+function handleNewTask() {
+    document.getElementById("refreshBtn").click();
+}
+</script>
 
-<!-- Iframe-to-parent mouse/click event forwarder for behavioral analysis -->
+<!-- Parent-iframe integration: incoming commands + outgoing event forwarding -->
 <script>
 (function () {
   // Only activate when running inside an iframe
   if (window.parent === window) return;
 
+  // --- Incoming message handler ---
+  window.addEventListener('message', function (e) {
+    if (!e.data || !e.data.type) return;
+
+    if (e.data.type === 'setComplexity') {
+      var slider = document.getElementById('complexitySlider');
+      var label  = document.getElementById('complexityValue');
+      if (slider && e.data.value !== undefined) {
+        slider.value = Math.max(1, Math.min(100, e.data.value));
+        if (label) label.textContent = slider.value;
+      }
+    } else if (e.data.type === 'reset') {
+      // Trigger new challenge via the refresh button
+      var btn = document.getElementById('refreshBtn');
+      if (btn) btn.click();
+    }
+  });
+
+  // --- Outgoing: throttled mousemove forwarding ---
   var lastMoveAt = 0;
-  var MOVE_INTERVAL_MS = 40; // Throttle to ~25 fps
+  var MOVE_INTERVAL_MS = 40; // ~25 fps throttle
 
   function postToParent(type, e) {
     window.parent.postMessage({
@@ -1168,7 +1264,6 @@
     }, '*');
   }
 
-  // Forward throttled mousemove events
   document.addEventListener('mousemove', function (e) {
     var now = performance.now();
     if (now - lastMoveAt < MOVE_INTERVAL_MS) return;
@@ -1176,11 +1271,66 @@
     postToParent('captcha:mouseMove', e);
   }, { passive: true });
 
-  // Forward click events (capture phase for robustness)
+  // --- Outgoing: click forwarding (capture phase) ---
   document.addEventListener('click', function (e) {
     postToParent('captcha:click', e);
   }, true);
+
+  // --- Outgoing: captcha:status and captcha:result ---
+  // Observe the confidenceLabel element to detect when results appear.
+  var statusSent = '';
+  var resultSent = false;
+
+  function checkStatus() {
+    var confEl = document.getElementById('confidenceLabel');
+    if (!confEl) return;
+
+    var text = confEl.textContent || '';
+
+    // Detect solving state (confidence label still shows dash placeholder)
+    if (text.indexOf('\u2014') !== -1 && statusSent !== 'solving') {
+      // Still in default state, nothing to report yet
+    }
+
+    // Detect final result (confidence label shows a percentage)
+    if (text.indexOf('%') !== -1 && !resultSent) {
+      resultSent = true;
+      var match = text.match(/(\d+)%/);
+      var confidence = match ? parseInt(match[1], 10) : 0;
+      window.parent.postMessage({ type: 'captcha:status', status: 'solved' }, '*');
+      window.parent.postMessage({ type: 'captcha:result', confidence: confidence, time: performance.now() }, '*');
+    }
+  }
+
+  // Observe confidence label for text changes
+  var confEl = document.getElementById('confidenceLabel');
+  if (confEl) {
+    new MutationObserver(function () { checkStatus(); })
+      .observe(confEl, { childList: true, characterData: true, subtree: true });
+  }
+
+  // Send solving status when canvas gets a pointerdown (user started interacting)
+  var canvasEl = document.getElementById('captchaCanvas');
+  if (canvasEl) {
+    canvasEl.addEventListener('pointerdown', function () {
+      if (statusSent !== 'solving' && !resultSent) {
+        statusSent = 'solving';
+        window.parent.postMessage({ type: 'captcha:status', status: 'solving' }, '*');
+      }
+    }, { once: false });
+  }
+
+  // Reset tracking when a new challenge starts
+  var refreshBtn = document.getElementById('refreshBtn');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', function () {
+      statusSent = '';
+      resultSent = false;
+    });
+  }
+  // newTaskBtn removed - refreshBtn handles new tasks
 })();
 </script>
+</div><!-- end shell -->
 </body>
 </html>

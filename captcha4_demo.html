@@ -1,0 +1,1233 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Captcha 4 — Поверни правильно (Demo)</title>
+  <style>
+    /* ================================================================
+       CSS RESET & BASE
+       ================================================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      background: #0F1117;
+      color: #C8C8CC;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                   "Helvetica Neue", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      min-height: 100vh;
+    }
+
+    /* ================================================================
+       LAYOUT SHELL
+       ================================================================ */
+    .shell {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    /* ================================================================
+       TOP BAR
+       ================================================================ */
+    .top-bar {
+      background: #161822;
+      border-bottom: 1px solid #23263A;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      height: 56px;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .logo svg {
+      width: 28px;
+      height: 28px;
+    }
+
+    .logo-text {
+      font-size: 15px;
+      font-weight: 700;
+      color: #E4E4E8;
+      letter-spacing: -0.02em;
+    }
+
+    .logo-tag {
+      font-size: 10px;
+      font-weight: 600;
+      color: #E4E4E8;
+      background: #2A2D3E;
+      padding: 2px 6px;
+      border-radius: 4px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .separator {
+      width: 1px;
+      height: 24px;
+      background: #23263A;
+      flex-shrink: 0;
+    }
+
+    /* Complexity slider */
+    .complexity-control {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .complexity-label {
+      font-size: 12px;
+      color: #7A7B85;
+      white-space: nowrap;
+    }
+
+    .complexity-slider {
+      width: 160px;
+      height: 4px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: #2A2D3E;
+      border-radius: 2px;
+      outline: none;
+    }
+
+    .complexity-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #B8B9C1;
+      cursor: pointer;
+    }
+
+    .complexity-value {
+      font-size: 13px;
+      font-weight: 700;
+      color: #E4E4E8;
+      min-width: 28px;
+      text-align: center;
+    }
+
+    /* Refresh button */
+    .refresh-btn {
+      margin-left: auto;
+      background: #1E2030;
+      color: #B8B9C1;
+      border: 1px solid #23263A;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      white-space: nowrap;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .refresh-btn:hover {
+      background: #23263A;
+      border-color: #3A3D52;
+    }
+
+    /* ================================================================
+       MAIN CONTENT AREA
+       ================================================================ */
+    .main-content {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 32px 24px;
+    }
+
+    /* ================================================================
+       CAPTCHA CARD
+       ================================================================ */
+    .captcha-card {
+      background: #161822;
+      border: 1px solid #23263A;
+      border-radius: 16px;
+      padding: 24px;
+      width: 380px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .captcha-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #E4E4E8;
+      margin-bottom: 4px;
+      text-align: center;
+    }
+
+    .captcha-subtitle {
+      font-size: 12px;
+      color: #7A7B85;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+
+    #captchaCanvas {
+      display: block;
+      width: 320px;
+      height: 320px;
+      border-radius: 10px;
+      background: #1E2030;
+      border: 1px solid #23263A;
+    }
+
+    .controls-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-top: 16px;
+    }
+
+    .rotate-btn {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: 1px solid #2A2D3E;
+      background: #1E2030;
+      font-size: 22px;
+      color: #B8B9C1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+
+    .rotate-btn:hover {
+      background: #2A2D3E;
+      color: #E4E4E8;
+      border-color: #363A50;
+    }
+
+    .rotate-btn:active {
+      transform: scale(0.95);
+    }
+
+    .rotate-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    .action-btn {
+      height: 40px;
+      padding: 0 28px;
+      border-radius: 8px;
+      border: none;
+      background: #ffffff;
+      color: #0F1117;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .action-btn:hover {
+      background: #e0e0e0;
+    }
+
+    .action-btn:active {
+      transform: scale(0.97);
+    }
+
+    .action-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    .round-info {
+      font-size: 12px;
+      color: #5A5B65;
+      margin-top: 10px;
+      text-align: center;
+      min-height: 16px;
+    }
+
+    .angle-display {
+      font-size: 11px;
+      color: #5A5B65;
+      margin-top: 4px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ================================================================
+       RESULT PANEL
+       ================================================================ */
+    .result-panel {
+      width: 380px;
+      background: #161822;
+      border: 1px solid #23263A;
+      border-radius: 16px;
+      padding: 20px 24px;
+      margin-top: 16px;
+      display: none;
+    }
+
+    .result-panel.visible { display: block; }
+
+    .result-header {
+      font-size: 12px;
+      font-weight: 600;
+      color: #7A7B85;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 14px;
+    }
+
+    .result-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+    }
+
+    .result-label {
+      font-size: 13px;
+      color: #7A7B85;
+    }
+
+    .result-value {
+      font-size: 13px;
+      font-weight: 600;
+      color: #E4E4E8;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .result-value.correct { color: #ffffff; }
+    .result-value.wrong { color: #E45A5A; }
+    .result-value.partial { color: #E4B95A; }
+
+    .result-divider {
+      height: 1px;
+      background: #23263A;
+      margin: 10px 0;
+    }
+
+    .confidence-big {
+      font-size: 36px;
+      font-weight: 700;
+      text-align: center;
+      margin: 8px 0;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .verdict-badge {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: 20px;
+      letter-spacing: 0.02em;
+      margin: 0 auto;
+    }
+
+    .badge-human {
+      background: rgba(255, 255, 255, 0.12);
+      color: #ffffff;
+    }
+
+    .badge-suspicious {
+      background: rgba(228, 185, 90, 0.12);
+      color: #E4B95A;
+    }
+
+    .badge-bot {
+      background: rgba(228, 90, 90, 0.12);
+      color: #E45A5A;
+    }
+
+    .result-center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-message {
+      font-size: 13px;
+      color: #7A7B85;
+      margin-top: 8px;
+      text-align: center;
+      min-height: 18px;
+    }
+
+    /* ================================================================
+       RESPONSIVE
+       ================================================================ */
+    @media (max-width: 600px) {
+      .top-bar {
+        height: auto;
+        padding: 12px 16px;
+      }
+      .captcha-card, .result-panel {
+        width: 100%;
+        max-width: 380px;
+      }
+      .main-content {
+        padding: 16px;
+        flex-direction: column;
+        align-items: center;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="shell">
+  <!-- Top bar -->
+  <div class="top-bar">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#B8B9C1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="9 11 12 14 22 4"></polyline>
+        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+      </svg>
+      <span class="logo-text">Captcha Sandbox</span>
+      <span class="logo-tag">DEMO</span>
+    </div>
+    <div class="separator"></div>
+    <div class="complexity-control">
+      <span class="complexity-label">Сложность:</span>
+      <input type="range" id="complexitySlider" class="complexity-slider" min="1" max="100" value="50">
+      <span class="complexity-value" id="complexityValue">50</span>
+    </div>
+    <button id="refreshBtn" class="refresh-btn" onclick="newChallenge()">
+      <span style="margin-right:6px;">↻</span>
+      Новое задание
+    </button>
+  </div>
+
+  <!-- Main content -->
+  <div class="main-content">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:0;">
+      <!-- Captcha card -->
+      <div class="captcha-card">
+        <div class="captcha-title">Поверни предмет правильно</div>
+        <div class="captcha-subtitle">Сделайте объект в правильном положении относительно стрелки</div>
+        <canvas id="captchaCanvas" width="640" height="640"></canvas>
+        <div class="controls-row">
+          <button class="rotate-btn" id="btnLeft" disabled>↺</button>
+          <button class="action-btn" id="btnNext" disabled>Далее</button>
+          <button class="rotate-btn" id="btnRight" disabled>↻</button>
+        </div>
+        <div class="round-info" id="roundInfo"></div>
+        <div class="angle-display" id="angleDisplay"></div>
+        <div class="status-message" id="statusMsg"></div>
+      </div>
+
+      <!-- Result panel -->
+      <div class="result-panel" id="resultPanel">
+        <div class="result-header">Результат проверки</div>
+        <div id="roundResults"></div>
+        <div class="result-divider"></div>
+        <div class="result-center">
+          <div class="confidence-big" id="confidenceScore">—</div>
+          <div id="verdictBadge"></div>
+        </div>
+        <div class="result-divider"></div>
+        <div class="result-row">
+          <span class="result-label">Время</span>
+          <span class="result-value" id="elapsedTime">—</span>
+        </div>
+        <div class="result-row">
+          <span class="result-label">Раунды</span>
+          <span class="result-value" id="roundSummary">—</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// Silhouette database — all 80 silhouettes from the architecture doc.
+// ============================================================
+const SILHOUETTES = {
+  // Category 1 — Animals
+  1001: { id: 1001, cat: 1, slug: 'cat-head', name: 'Кот', diff: 1, paths: ['M20 38 L30 18 L44 32 L56 32 L70 18 L80 38 L80 70 Q80 84 66 84 L34 84 Q20 84 20 70 Z'] },
+  1002: { id: 1002, cat: 1, slug: 'dog-head', name: 'Собака', diff: 1, paths: ['M24 28 Q15 36 18 50 L22 70 Q24 84 38 84 L62 84 Q76 84 78 70 L82 50 Q85 36 76 28 L66 40 L58 30 L42 30 L34 40 Z'] },
+  1003: { id: 1003, cat: 1, slug: 'rabbit', name: 'Кролик', diff: 1, paths: ['M34 16 Q30 4 38 4 Q46 4 46 18 L46 34 L54 34 L54 18 Q54 4 62 4 Q70 4 66 16 L64 34 Q78 42 78 58 Q78 84 50 84 Q22 84 22 58 Q22 42 36 34 Z'] },
+  1004: { id: 1004, cat: 1, slug: 'fox-head', name: 'Лиса', diff: 1, paths: ['M18 44 L30 18 L42 34 L58 34 L70 18 L82 44 L70 78 L50 88 L30 78 Z'] },
+  1005: { id: 1005, cat: 1, slug: 'bird-side', name: 'Птица', diff: 2, paths: ['M18 58 Q24 38 42 34 Q54 20 70 30 Q82 38 82 54 Q82 68 70 74 Q58 80 42 78 Q28 76 20 66 L30 60 L18 58 Z', 'M70 42 L90 50 L70 58 Z'] },
+  1006: { id: 1006, cat: 1, slug: 'fish', name: 'Рыба', diff: 2, paths: ['M18 50 L34 36 Q50 24 68 32 Q80 38 84 50 Q80 62 68 68 Q50 76 34 64 Z', 'M84 50 L96 36 L96 64 Z'] },
+  1007: { id: 1007, cat: 1, slug: 'turtle', name: 'Черепаха', diff: 2, paths: ['M24 56 Q24 34 50 28 Q76 34 76 56 Q76 78 50 82 Q24 78 24 56 Z', 'M14 50 Q20 44 24 50 Q20 58 14 54 Z M76 50 Q82 44 88 50 Q82 58 76 54 Z M34 22 Q38 16 44 22 L40 30 Z M56 22 Q62 16 66 22 L60 30 Z'] },
+  1008: { id: 1008, cat: 1, slug: 'elephant-head', name: 'Слон', diff: 1, paths: ['M24 28 Q10 40 18 58 L24 72 Q30 84 44 84 L56 84 Q70 84 76 72 L82 58 Q90 40 76 28 Q66 18 56 24 L50 34 L44 24 Q34 18 24 28 Z', 'M44 46 Q50 40 56 46 L56 70 Q56 82 50 88 Q44 82 44 70 Z'] },
+  1009: { id: 1009, cat: 1, slug: 'giraffe', name: 'Жираф', diff: 2, paths: ['M42 14 L56 14 L60 38 Q74 42 74 54 Q74 68 62 72 L62 84 L52 84 L50 72 L46 72 L44 84 L34 84 L34 56 Q34 44 42 38 Z'] },
+  1010: { id: 1010, cat: 1, slug: 'snail', name: 'Улитка', diff: 3, paths: ['M20 64 Q22 44 42 40 Q62 36 70 50 Q76 60 70 70 L82 70 Q88 70 88 76 Q88 82 80 82 L30 82 Q18 82 18 72 Q18 66 20 64 Z', 'M36 58 Q36 46 48 46 Q60 46 60 58 Q60 70 48 70 Q36 70 36 58 Z', 'M68 50 L72 40 M76 52 L82 42'] },
+  // Category 2 — Tools
+  1101: { id: 1101, cat: 2, slug: 'hammer', name: 'Молоток', diff: 1, paths: ['M44 14 L56 14 L56 54 L44 54 Z', 'M26 8 L74 8 L74 22 L26 22 Z'] },
+  1102: { id: 1102, cat: 2, slug: 'wrench', name: 'Гаечный ключ', diff: 1, paths: ['M36 10 Q50 4 60 14 L54 28 L56 44 L44 44 L46 28 L40 14 Q28 18 26 30 Q28 20 36 10 Z M44 44 L56 44 L58 86 Q58 94 50 94 Q42 94 42 86 Z'] },
+  1103: { id: 1103, cat: 2, slug: 'screwdriver', name: 'Отвёртка', diff: 1, paths: ['M44 12 L56 12 L62 36 L38 36 Z', 'M46 36 L54 36 L54 86 Q54 92 50 94 Q46 92 46 86 Z'] },
+  1104: { id: 1104, cat: 2, slug: 'pliers', name: 'Плоскогубцы', diff: 2, paths: ['M38 18 L46 42 L50 46 L54 42 L62 18 L72 22 L60 54 L72 84 L60 88 L50 62 L40 88 L28 84 L40 54 L28 22 Z'] },
+  1105: { id: 1105, cat: 2, slug: 'paint-brush', name: 'Кисть', diff: 1, paths: ['M34 10 L66 10 L60 30 L40 30 Z', 'M44 30 L56 30 L62 80 L50 92 L38 80 Z'] },
+  1106: { id: 1106, cat: 2, slug: 'shovel', name: 'Лопата', diff: 1, paths: ['M38 8 L62 8 L62 18 L54 18 L54 56 Q72 62 72 76 Q72 88 50 94 Q28 88 28 76 Q28 62 46 56 L46 18 L38 18 Z'] },
+  1107: { id: 1107, cat: 2, slug: 'axe', name: 'Топор', diff: 1, paths: ['M42 10 L54 10 L58 54 L50 92 L42 54 Z', 'M54 18 Q78 16 84 34 Q72 50 56 46 Z'] },
+  1108: { id: 1108, cat: 2, slug: 'saw', name: 'Пила', diff: 2, paths: ['M18 34 L74 18 L86 30 L30 46 Z', 'M28 46 L84 30 L84 40 L76 44 L72 50 L64 46 L60 52 L52 48 L48 54 L40 50 L36 56 L28 52 Z'] },
+  1109: { id: 1109, cat: 2, slug: 'key', name: 'Ключ', diff: 3, paths: ['M32 30 Q20 30 20 42 Q20 54 32 54 Q42 54 44 46 L74 46 L74 58 L82 58 L82 46 L90 46 L90 34 L44 34 Q42 30 32 30 Z'] },
+  1110: { id: 1110, cat: 2, slug: 'scissors', name: 'Ножницы', diff: 2, paths: ['M26 70 Q18 62 18 52 Q18 42 28 38 Q38 34 46 42 L50 48 L74 18 L82 24 L58 54 L82 82 L74 88 L50 60 L46 66 Q38 74 28 70 Z', 'M54 54 L72 20 L80 26 L62 58 Z'] },
+  // Category 3 — Transport
+  1201: { id: 1201, cat: 3, slug: 'car', name: 'Автомобиль', diff: 1, paths: ['M22 58 L28 42 Q34 30 48 30 L64 30 Q74 30 80 42 L86 58 L86 70 L14 70 L14 58 Z', 'M24 70 A8 8 0 1 0 40 70 A8 8 0 1 0 24 70 Z M60 70 A8 8 0 1 0 76 70 A8 8 0 1 0 60 70 Z'] },
+  1202: { id: 1202, cat: 3, slug: 'bus', name: 'Автобус', diff: 1, paths: ['M16 26 L84 26 Q90 26 90 32 L90 68 Q90 74 84 74 L16 74 Q10 74 10 68 L10 32 Q10 26 16 26 Z', 'M18 74 A7 7 0 1 0 32 74 A7 7 0 1 0 18 74 Z M68 74 A7 7 0 1 0 82 74 A7 7 0 1 0 68 74 Z'] },
+  1203: { id: 1203, cat: 3, slug: 'bicycle', name: 'Велосипед', diff: 2, paths: ['M18 68 A14 14 0 1 0 46 68 A14 14 0 1 0 18 68 Z M54 68 A14 14 0 1 0 82 68 A14 14 0 1 0 54 68 Z', 'M32 68 L46 44 L58 68 L46 68 L38 54 L30 68 Z M46 44 L58 44 L66 34 M58 44 L72 68'] },
+  1204: { id: 1204, cat: 3, slug: 'airplane', name: 'Самолёт', diff: 2, paths: ['M46 8 L54 8 L58 38 L84 48 L84 56 L58 52 L58 80 L50 92 L42 80 L42 52 L16 56 L16 48 L42 38 Z'] },
+  1205: { id: 1205, cat: 3, slug: 'sailboat', name: 'Парусник', diff: 1, paths: ['M48 12 L54 12 L54 54 L78 54 L54 22 Z', 'M16 64 Q24 76 50 76 Q76 76 84 64 L74 64 Q68 70 50 70 Q32 70 26 64 Z'] },
+  1206: { id: 1206, cat: 3, slug: 'rocket', name: 'Ракета', diff: 1, paths: ['M50 6 Q68 22 68 44 L68 60 L78 72 L68 74 L60 68 L60 82 L50 94 L40 82 L40 68 L32 74 L22 72 L32 60 L32 44 Q32 22 50 6 Z', 'M44 36 A6 6 0 1 0 56 36 A6 6 0 1 0 44 36 Z'] },
+  1207: { id: 1207, cat: 3, slug: 'tractor', name: 'Трактор', diff: 2, paths: ['M18 54 L34 54 L34 38 L54 38 L62 50 L78 50 L84 58 L84 68 L18 68 Z', 'M18 68 A12 12 0 1 0 42 68 A12 12 0 1 0 18 68 Z M62 68 A7 7 0 1 0 76 68 A7 7 0 1 0 62 68 Z'] },
+  1208: { id: 1208, cat: 3, slug: 'helicopter', name: 'Вертолёт', diff: 2, paths: ['M28 48 Q34 34 50 34 Q66 34 72 48 Q72 60 58 62 L40 62 Q28 60 28 48 Z', 'M20 32 L80 32 M72 48 L90 44 L92 50 L74 54 M22 62 L78 62'] },
+  1209: { id: 1209, cat: 3, slug: 'train-front', name: 'Поезд', diff: 1, paths: ['M28 18 L72 18 Q78 18 78 24 L78 64 Q78 82 50 90 Q22 82 22 64 L22 24 Q22 18 28 18 Z', 'M32 32 A8 8 0 1 0 48 32 A8 8 0 1 0 32 32 Z M52 32 A8 8 0 1 0 68 32 A8 8 0 1 0 52 32 Z'] },
+  1210: { id: 1210, cat: 3, slug: 'scooter', name: 'Самокат', diff: 3, paths: ['M26 72 A8 8 0 1 0 42 72 A8 8 0 1 0 26 72 Z M58 72 A8 8 0 1 0 74 72 A8 8 0 1 0 58 72 Z', 'M34 72 L60 72 L52 44 L58 18 L66 18 L60 44 L66 50'] },
+  // Category 4 — Household
+  1301: { id: 1301, cat: 4, slug: 'teapot', name: 'Чайник', diff: 1, paths: ['M28 38 Q28 24 50 24 Q72 24 72 38 L72 54 Q72 74 50 78 Q28 74 28 54 Z', 'M36 20 Q40 10 50 10 Q60 10 64 20 M72 40 Q88 42 88 54 Q88 66 74 66'] },
+  1302: { id: 1302, cat: 4, slug: 'chair', name: 'Стул', diff: 1, paths: ['M28 20 L62 20 L62 46 L74 46 L74 56 L26 56 L26 46 L28 46 Z', 'M34 56 L34 84 L24 84 L24 56 M66 56 L66 84 L76 84 L76 56'] },
+  1303: { id: 1303, cat: 4, slug: 'table-lamp', name: 'Лампа', diff: 1, paths: ['M34 18 L70 18 L58 42 L46 42 Z', 'M50 42 L56 70 L44 70 Z M30 74 L70 74 L74 84 L26 84 Z'] },
+  1304: { id: 1304, cat: 4, slug: 'mug', name: 'Кружка', diff: 2, paths: ['M24 26 L62 26 L62 74 Q62 82 54 82 L32 82 Q24 82 24 74 Z', 'M62 36 Q78 36 78 50 Q78 64 62 64'] },
+  1305: { id: 1305, cat: 4, slug: 'bottle', name: 'Бутылка', diff: 1, paths: ['M42 6 L58 6 L58 18 L54 24 L54 78 Q54 90 50 94 Q46 90 46 78 L46 24 L42 18 Z'] },
+  1306: { id: 1306, cat: 4, slug: 'sofa', name: 'Диван', diff: 2, paths: ['M18 40 Q18 26 30 26 L70 26 Q82 26 82 40 L82 70 L18 70 Z', 'M26 44 L42 44 L42 58 L26 58 Z M58 44 L74 44 L74 58 L58 58 Z M22 70 L22 82 M78 70 L78 82'] },
+  1307: { id: 1307, cat: 4, slug: 'clock', name: 'Будильник', diff: 3, paths: ['M50 20 Q76 20 80 46 Q84 72 50 80 Q16 72 20 46 Q24 20 50 20 Z', 'M36 18 L28 8 M64 18 L72 8 M50 34 L50 52 L62 58'] },
+  1308: { id: 1308, cat: 4, slug: 'watering-can', name: 'Лейка', diff: 2, paths: ['M24 42 L62 42 L70 58 L62 76 L30 76 L24 62 Z', 'M62 48 Q82 46 86 58 Q82 70 68 68 M20 42 Q10 48 10 60 Q10 72 24 76'] },
+  1309: { id: 1309, cat: 4, slug: 'iron', name: 'Утюг', diff: 2, paths: ['M20 66 Q26 38 50 32 Q66 28 80 42 L88 60 Q90 68 80 70 L24 74 Q18 74 20 66 Z', 'M42 40 L62 40 Q68 40 70 48 L44 48 Q40 48 42 40 Z'] },
+  1310: { id: 1310, cat: 4, slug: 'keyhole', name: 'Замочная скважина', diff: 3, paths: ['M50 18 Q64 18 68 32 Q68 44 58 50 L62 80 L38 80 L42 50 Q32 44 32 32 Q36 18 50 18 Z'] },
+  // Category 5 — Nature
+  1401: { id: 1401, cat: 5, slug: 'tree', name: 'Дерево', diff: 1, paths: ['M50 10 Q68 10 74 26 Q86 30 84 46 Q92 54 84 66 Q74 78 58 72 L58 90 L42 90 L42 72 Q24 78 16 66 Q8 54 16 46 Q14 30 26 26 Q32 10 50 10 Z'] },
+  1402: { id: 1402, cat: 5, slug: 'pine-tree', name: 'Ель', diff: 1, paths: ['M50 8 L68 30 L58 30 L74 50 L62 50 L80 72 L56 72 L56 90 L44 90 L44 72 L20 72 L38 50 L26 50 L42 30 L32 30 Z'] },
+  1403: { id: 1403, cat: 5, slug: 'mountain', name: 'Гора', diff: 1, paths: ['M12 80 L38 30 L52 54 L64 36 L88 80 Z'] },
+  1404: { id: 1404, cat: 5, slug: 'leaf', name: 'Лист', diff: 2, paths: ['M20 56 Q20 28 46 18 Q70 12 82 34 Q84 58 62 74 Q40 88 20 56 Z', 'M28 68 L66 30'] },
+  1405: { id: 1405, cat: 5, slug: 'flower', name: 'Цветок', diff: 2, paths: ['M50 36 A10 10 0 1 0 50 16 A10 10 0 1 0 50 36 Z M64 50 A10 10 0 1 0 84 50 A10 10 0 1 0 64 50 Z M50 64 A10 10 0 1 0 50 84 A10 10 0 1 0 50 64 Z M16 50 A10 10 0 1 0 36 50 A10 10 0 1 0 16 50 Z', 'M44 44 A6 6 0 1 0 56 44 A6 6 0 1 0 44 44 Z M50 56 L50 92'] },
+  1406: { id: 1406, cat: 5, slug: 'cloud-rain', name: 'Дождевое облако', diff: 2, paths: ['M28 58 Q16 58 16 46 Q16 34 28 34 Q32 20 46 20 Q58 20 64 30 Q76 30 80 40 Q88 42 88 54 Q88 66 76 66 L28 66 Z', 'M34 72 L30 84 M50 72 L46 84 M66 72 L62 84'] },
+  1407: { id: 1407, cat: 5, slug: 'snowflake', name: 'Снежинка', diff: 3, paths: ['M50 14 L50 86 M20 32 L80 68 M20 68 L80 32 M44 20 L50 14 L56 20 M44 80 L50 86 L56 80 M26 28 L20 32 L24 40 M74 60 L80 68 L72 70 M26 72 L20 68 L24 60 M74 40 L80 32 L72 30'] },
+  1408: { id: 1408, cat: 5, slug: 'cactus', name: 'Кактус', diff: 1, paths: ['M42 16 Q42 8 50 8 Q58 8 58 16 L58 34 Q66 34 66 42 L66 52 Q66 58 72 58 Q78 58 78 50 L78 36 Q78 28 86 28 Q92 28 92 36 L92 56 Q92 70 78 72 L58 72 L58 90 L42 90 L42 58 L32 58 Q22 58 22 48 L22 38 Q22 30 30 30 Q36 30 36 38 L36 46 Q36 52 42 52 Z'] },
+  1409: { id: 1409, cat: 5, slug: 'mushroom', name: 'Гриб', diff: 1, paths: ['M18 44 Q24 20 50 20 Q76 20 82 44 Q76 56 60 56 L60 84 L40 84 L40 56 Q24 56 18 44 Z'] },
+  1410: { id: 1410, cat: 5, slug: 'acorn', name: 'Жёлудь', diff: 3, paths: ['M40 16 Q44 8 50 8 Q56 8 60 16 L66 20 Q74 24 74 34 Q74 44 64 48 Q66 58 62 70 Q58 84 50 90 Q42 84 38 70 Q34 58 36 48 Q26 44 26 34 Q26 24 34 20 Z'] },
+  // Category 6 — Food
+  1501: { id: 1501, cat: 6, slug: 'ice-cream', name: 'Мороженое', diff: 1, paths: ['M30 36 Q30 18 50 18 Q70 18 70 36 Q70 50 58 54 L54 54 L60 84 L40 84 L46 54 L42 54 Q30 50 30 36 Z'] },
+  1502: { id: 1502, cat: 6, slug: 'cupcake', name: 'Капкейк', diff: 1, paths: ['M28 54 Q24 34 40 28 Q42 14 56 14 Q72 14 74 30 Q84 36 80 54 Z', 'M30 54 L70 54 L64 82 L36 82 Z'] },
+  1503: { id: 1503, cat: 6, slug: 'pizza-slice', name: 'Пицца', diff: 1, paths: ['M18 24 L82 24 L50 88 Z', 'M34 38 A4 4 0 1 0 42 38 A4 4 0 1 0 34 38 Z M54 46 A4 4 0 1 0 62 46 A4 4 0 1 0 54 46 Z M44 58 A4 4 0 1 0 52 58 A4 4 0 1 0 44 58 Z'] },
+  1504: { id: 1504, cat: 6, slug: 'banana', name: 'Банан', diff: 2, paths: ['M20 62 Q34 24 72 20 Q66 42 58 54 Q46 74 20 62 Z'] },
+  1505: { id: 1505, cat: 6, slug: 'carrot', name: 'Морковь', diff: 1, paths: ['M46 24 L54 24 L64 34 L50 90 L36 34 Z', 'M42 20 L32 8 M50 20 L50 6 M58 20 L68 8'] },
+  1506: { id: 1506, cat: 6, slug: 'pear', name: 'Груша', diff: 2, paths: ['M48 10 Q52 6 56 10 L54 20 Q68 28 68 46 Q80 54 80 66 Q80 84 50 88 Q20 84 20 66 Q20 54 32 46 Q32 28 46 20 Z'] },
+  1507: { id: 1507, cat: 6, slug: 'fishbone', name: 'Рыбная кость', diff: 2, paths: ['M14 50 L76 50 M76 50 L90 36 M76 50 L90 64 M30 50 L22 40 M30 50 L22 60 M44 50 L36 38 M44 50 L36 62 M58 50 L50 40 M58 50 L50 60'] },
+  1508: { id: 1508, cat: 6, slug: 'bread-loaf', name: 'Батон', diff: 2, paths: ['M18 58 Q18 32 38 26 Q52 18 66 24 Q84 30 84 52 Q84 76 56 80 L30 80 Q18 76 18 58 Z', 'M34 34 L30 56 M48 30 L44 58 M62 32 L60 58'] },
+  1509: { id: 1509, cat: 6, slug: 'apple', name: 'Яблоко', diff: 2, paths: ['M48 16 Q54 8 60 14 L56 24 Q76 28 76 50 Q76 84 50 88 Q24 84 24 50 Q24 28 44 24 Z', 'M50 22 Q64 12 74 18'] },
+  1510: { id: 1510, cat: 6, slug: 'hotdog', name: 'Хот-дог', diff: 3, paths: ['M18 60 Q26 40 44 40 L58 40 Q76 40 84 60 Q76 80 58 80 L44 80 Q26 80 18 60 Z', 'M26 58 Q40 46 58 50 Q68 52 76 60 Q68 68 58 70 Q40 74 26 62 Z'] },
+  // Category 7 — Sport
+  1601: { id: 1601, cat: 7, slug: 'trophy', name: 'Кубок', diff: 1, paths: ['M30 18 L70 18 L66 42 Q64 56 54 60 L54 70 L64 76 L64 84 L36 84 L36 76 L46 70 L46 60 Q36 56 34 42 Z', 'M30 22 Q14 24 14 38 Q14 52 28 54 M70 22 Q86 24 86 38 Q86 52 72 54'] },
+  1602: { id: 1602, cat: 7, slug: 'tennis-racket', name: 'Ракетка', diff: 1, paths: ['M34 16 Q52 8 66 22 Q80 36 72 54 Q64 72 46 70 Q28 68 22 50 Q16 32 34 16 Z', 'M54 66 L66 88 L56 94 L44 72'] },
+  1603: { id: 1603, cat: 7, slug: 'baseball-bat', name: 'Бита', diff: 1, paths: ['M56 8 Q72 10 76 26 Q78 42 68 52 L52 72 L42 66 L58 46 Q66 38 64 28 Q62 18 52 18 Z', 'M40 68 L30 86 L22 82 L32 64 Z'] },
+  1604: { id: 1604, cat: 7, slug: 'dumbbell', name: 'Гантель', diff: 3, paths: ['M14 34 L22 34 L22 66 L14 66 Z M24 28 L32 28 L32 72 L24 72 Z M32 46 L68 46 L68 54 L32 54 Z M68 28 L76 28 L76 72 L68 72 Z M78 34 L86 34 L86 66 L78 66 Z'] },
+  1605: { id: 1605, cat: 7, slug: 'medal', name: 'Медаль', diff: 2, paths: ['M34 10 L46 10 L50 26 L54 10 L66 10 L58 34 L42 34 Z', 'M30 56 A20 20 0 1 0 70 56 A20 20 0 1 0 30 56 Z'] },
+  1606: { id: 1606, cat: 7, slug: 'boxing-glove', name: 'Перчатка', diff: 2, paths: ['M36 28 Q56 18 70 28 Q82 38 78 56 Q72 74 52 74 L34 74 Q24 74 24 64 L24 48 Q24 34 36 28 Z', 'M26 74 L48 74 L48 86 L26 86 Z'] },
+  1607: { id: 1607, cat: 7, slug: 'bowling-pin', name: 'Кегля', diff: 1, paths: ['M42 8 Q50 2 58 8 Q66 14 62 26 L56 40 Q70 54 70 72 Q70 88 50 92 Q30 88 30 72 Q30 54 44 40 L38 26 Q34 14 42 8 Z'] },
+  1608: { id: 1608, cat: 7, slug: 'skateboard', name: 'Скейтборд', diff: 3, paths: ['M16 56 Q20 46 32 44 L68 44 Q80 46 84 56 Q80 66 68 68 L32 68 Q20 66 16 56 Z', 'M24 72 A6 6 0 1 0 36 72 A6 6 0 1 0 24 72 Z M64 72 A6 6 0 1 0 76 72 A6 6 0 1 0 64 72 Z'] },
+  1609: { id: 1609, cat: 7, slug: 'whistle', name: 'Свисток', diff: 3, paths: ['M24 54 Q24 34 44 34 L62 34 Q78 34 78 50 Q78 66 62 66 L38 66 Q24 66 24 54 Z', 'M62 50 A8 8 0 1 0 78 50 A8 8 0 1 0 62 50 Z M34 34 L26 22 L34 18 L42 34'] },
+  1610: { id: 1610, cat: 7, slug: 'goal-net', name: 'Ворота', diff: 2, paths: ['M22 24 L78 24 L78 76 L22 76 Z', 'M22 24 L34 40 L34 76 M46 24 L52 40 L52 76 M64 24 L70 40 L70 76 M22 76 L34 62 L78 62'] },
+  // Category 8 — Music
+  1701: { id: 1701, cat: 8, slug: 'guitar', name: 'Гитара', diff: 1, paths: ['M60 10 L68 18 L58 28 L66 36 Q74 44 72 54 Q70 68 56 70 Q46 72 40 64 Q34 74 24 72 Q10 70 8 56 Q6 42 18 34 Q28 28 38 34 L48 24 Z'] },
+  1702: { id: 1702, cat: 8, slug: 'violin', name: 'Скрипка', diff: 2, paths: ['M46 8 L54 8 L56 28 Q66 30 66 42 Q66 50 58 54 Q66 58 66 68 Q66 82 50 88 Q34 82 34 68 Q34 58 42 54 Q34 50 34 42 Q34 30 44 28 Z'] },
+  1703: { id: 1703, cat: 8, slug: 'trumpet', name: 'Труба', diff: 2, paths: ['M16 48 L54 48 L66 38 L82 38 L82 62 L66 62 L54 52 L16 52 Z', 'M54 42 L58 34 M60 42 L64 34 M66 42 L70 34'] },
+  1704: { id: 1704, cat: 8, slug: 'drum', name: 'Барабан', diff: 3, paths: ['M24 30 L76 30 L76 70 L24 70 Z', 'M24 30 L34 20 M76 30 L66 20 M24 70 L34 80 M76 70 L66 80 M34 30 L34 70 M50 30 L50 70 M66 30 L66 70'] },
+  1705: { id: 1705, cat: 8, slug: 'microphone', name: 'Микрофон', diff: 1, paths: ['M34 22 Q34 8 50 8 Q66 8 66 22 Q66 36 50 42 Q34 36 34 22 Z', 'M46 42 L54 42 L54 70 L66 84 L58 90 L50 80 L42 90 L34 84 L46 70 Z'] },
+  1706: { id: 1706, cat: 8, slug: 'piano-keys', name: 'Клавиши', diff: 2, paths: ['M16 24 L84 24 L84 76 L16 76 Z', 'M26 24 L26 76 M38 24 L38 76 M50 24 L50 76 M62 24 L62 76 M74 24 L74 76 M32 24 L32 54 M44 24 L44 54 M56 24 L56 54 M68 24 L68 54'] },
+  1707: { id: 1707, cat: 8, slug: 'music-note', name: 'Нота', diff: 1, paths: ['M56 14 L72 10 L72 56 Q72 72 58 76 Q44 80 38 70 Q32 58 46 52 Q52 48 56 50 Z'] },
+  1708: { id: 1708, cat: 8, slug: 'headphones', name: 'Наушники', diff: 3, paths: ['M24 52 Q24 20 50 20 Q76 20 76 52 L76 74 L62 74 L62 52 Q62 36 50 36 Q38 36 38 52 L38 74 L24 74 Z'] },
+  1709: { id: 1709, cat: 8, slug: 'harp', name: 'Арфа', diff: 2, paths: ['M30 14 L62 14 L74 78 L44 88 L30 14 Z', 'M44 24 L50 76 M52 22 L58 74 M60 20 L66 72'] },
+  1710: { id: 1710, cat: 8, slug: 'speaker', name: 'Колонка', diff: 2, paths: ['M28 16 L72 16 L78 84 L22 84 Z', 'M38 38 A8 8 0 1 0 54 38 A8 8 0 1 0 38 38 Z M32 60 A14 14 0 1 0 60 60 A14 14 0 1 0 32 60 Z'] },
+};
+
+// ============================================================
+// Complexity profiles (matching backend exactly)
+// ============================================================
+const PROFILES = [
+  { min:1,  max:10,  rounds:1, step:90, opts:4,  diffs:[1], weights:[100], noise:0, flags:0x00, animMin:120, animMax:160, minOffset:1 },
+  { min:11, max:20,  rounds:1, step:90, opts:4,  diffs:[1], weights:[100], noise:1, flags:0x01, animMin:120, animMax:160, minOffset:1 },
+  { min:21, max:30,  rounds:1, step:60, opts:6,  diffs:[1], weights:[100], noise:1, flags:0x09, animMin:140, animMax:180, minOffset:1 },
+  { min:31, max:40,  rounds:1, step:60, opts:6,  diffs:[1,2], weights:[70,30], noise:1, flags:0x0B, animMin:140, animMax:180, minOffset:1 },
+  { min:41, max:50,  rounds:2, step:60, opts:6,  diffs:[2], weights:[100], noise:2, flags:0x0F, animMin:160, animMax:220, minOffset:1 },
+  { min:51, max:60,  rounds:2, step:45, opts:8,  diffs:[2], weights:[100], noise:2, flags:0x1F, animMin:180, animMax:240, minOffset:1 },
+  { min:61, max:70,  rounds:2, step:45, opts:8,  diffs:[2,3], weights:[70,30], noise:3, flags:0x1F, animMin:180, animMax:260, minOffset:2 },
+  { min:71, max:80,  rounds:3, step:45, opts:8,  diffs:[2,3], weights:[45,55], noise:3, flags:0x1F, animMin:200, animMax:280, minOffset:2 },
+  { min:81, max:90,  rounds:3, step:45, opts:8,  diffs:[3], weights:[100], noise:4, flags:0x1F, animMin:220, animMax:300, minOffset:2 },
+  { min:91, max:100, rounds:3, step:30, opts:12, diffs:[3], weights:[100], noise:4, flags:0x1F, animMin:240, animMax:320, minOffset:3 },
+];
+
+// ============================================================
+// Seeded PRNG
+// ============================================================
+function mulberry32(seed) {
+  let t = seed >>> 0;
+  return function() {
+    t += 0x6D2B79F5;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+function normalizeAngle(d) { return ((d % 360) + 360) % 360; }
+
+// ============================================================
+// State
+// ============================================================
+let canvas, ctx, dpr;
+let challenge = null; // { profile, rounds: [{sil, initialAngle, correctAngle, animMs, seed}], renderSeed }
+let state = null;     // { roundIndex, currentAngle, clickCounts, finalAngles, isAnimating, startTime }
+let resultShown = false;
+
+// ============================================================
+// DOM
+// ============================================================
+const $ = id => document.getElementById(id);
+
+// ============================================================
+// Initialization
+// ============================================================
+function initCanvas() {
+  canvas = $('captchaCanvas');
+  ctx = canvas.getContext('2d');
+  dpr = window.devicePixelRatio || 1;
+  canvas.width = 320 * dpr;
+  canvas.height = 320 * dpr;
+  canvas.style.width = '320px';
+  canvas.style.height = '320px';
+  ctx.fillStyle = '#1E2030';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+function profileFor(level) {
+  for (const p of PROFILES) {
+    if (level >= p.min && level <= p.max) return p;
+  }
+  return PROFILES[0];
+}
+
+function pickDifficulty(profile) {
+  if (profile.diffs.length === 1) return profile.diffs[0];
+  let total = 0;
+  for (const w of profile.weights) total += w;
+  let r = Math.random() * total;
+  let cum = 0;
+  for (let i = 0; i < profile.weights.length; i++) {
+    cum += profile.weights[i];
+    if (r < cum) return profile.diffs[i];
+  }
+  return profile.diffs[profile.diffs.length - 1];
+}
+
+function pickSilhouette(diff, usedIds) {
+  const candidates = Object.values(SILHOUETTES).filter(s => s.diff === diff && !usedIds.has(s.id));
+  if (candidates.length > 0) return candidates[Math.floor(Math.random() * candidates.length)];
+  // Fallback: any silhouette not used
+  const fallback = Object.values(SILHOUETTES).filter(s => !usedIds.has(s.id));
+  return fallback[Math.floor(Math.random() * fallback.length)];
+}
+
+function pickInitialAngle(step, opts, minOffset) {
+  const maxOff = opts - 1;
+  const minOff = Math.min(minOffset, maxOff);
+  const possible = [];
+  for (let i = minOff; i <= maxOff; i++) possible.push(i);
+  if (possible.length === 0) possible.push(1);
+  const off = possible[Math.floor(Math.random() * possible.length)];
+  return off * step;
+}
+
+function randRange(min, max) { return min + Math.floor(Math.random() * (max - min + 1)); }
+
+// ============================================================
+// New challenge
+// ============================================================
+function newChallenge() {
+  const complexity = parseInt($('complexitySlider').value);
+  const profile = profileFor(complexity);
+  const usedIds = new Set();
+  const rounds = [];
+  const renderSeed = (Math.random() * 0xFFFFFFFF) >>> 0;
+
+  for (let i = 0; i < profile.rounds; i++) {
+    const diff = pickDifficulty(profile);
+    const sil = pickSilhouette(diff, usedIds);
+    usedIds.add(sil.id);
+    const initial = pickInitialAngle(profile.step, profile.opts, profile.minOffset);
+    const animMs = randRange(profile.animMin, profile.animMax);
+    const roundSeed = (Math.random() * 0xFFFFFFFF) >>> 0;
+    rounds.push({
+      sil: sil,
+      initialAngle: initial,
+      correctAngle: 0,
+      animMs: animMs,
+      seed: roundSeed,
+    });
+  }
+
+  challenge = { profile, rounds, renderSeed, complexity };
+  state = {
+    roundIndex: 0,
+    currentAngle: rounds[0].initialAngle,
+    clickCounts: [0, 0, 0],
+    finalAngles: [0, 0, 0],
+    isAnimating: false,
+    startTime: performance.now(),
+  };
+  resultShown = false;
+  $('resultPanel').classList.remove('visible');
+  $('statusMsg').textContent = '';
+  loadRound(0);
+}
+
+function loadRound(idx) {
+  state.roundIndex = idx;
+  const round = challenge.rounds[idx];
+  state.currentAngle = round.initialAngle;
+
+  if (challenge.rounds.length > 1) {
+    $('roundInfo').textContent = `Раунд ${idx + 1} из ${challenge.rounds.length}`;
+  } else {
+    $('roundInfo').textContent = '';
+  }
+
+  $('btnNext').textContent = (idx === challenge.rounds.length - 1) ? 'Подтвердить' : 'Далее';
+  enableControls(true);
+  render();
+  updateAngleDisplay();
+}
+
+function enableControls(on) {
+  $('btnLeft').disabled = !on;
+  $('btnRight').disabled = !on;
+  $('btnNext').disabled = !on;
+}
+
+// ============================================================
+// Rotation
+// ============================================================
+function rotateBy(stepDeg) {
+  if (!challenge || state.isAnimating) return;
+  state.isAnimating = true;
+  const from = state.currentAngle;
+  const dur = challenge.rounds[state.roundIndex].animMs;
+  const start = performance.now();
+
+  function anim() {
+    const t = Math.min(1, (performance.now() - start) / dur);
+    state.currentAngle = normalizeAngle(from + stepDeg * easeOutCubic(t));
+    render();
+    updateAngleDisplay();
+    if (t < 1) {
+      requestAnimationFrame(anim);
+    } else {
+      // Round to integer to avoid float precision bugs in angle comparison
+      state.currentAngle = Math.round(normalizeAngle(Math.round((from + stepDeg) / challenge.profile.step) * challenge.profile.step));
+      state.clickCounts[state.roundIndex]++;
+      state.isAnimating = false;
+      render();
+      updateAngleDisplay();
+    }
+  }
+  requestAnimationFrame(anim);
+}
+
+function updateAngleDisplay() {
+  $('angleDisplay').textContent = `Поворот: ${Math.round(normalizeAngle(state.currentAngle))}°`;
+}
+
+function onNext() {
+  if (!challenge || state.isAnimating || resultShown) return;
+
+  state.finalAngles[state.roundIndex] = Math.round(normalizeAngle(state.currentAngle));
+  const round = challenge.rounds[state.roundIndex];
+
+  // Round guard
+  if (state.clickCounts[state.roundIndex] === 0 && round.initialAngle !== 0) {
+    $('statusMsg').textContent = 'Поверните объект хотя бы раз';
+    return;
+  }
+  $('statusMsg').textContent = '';
+
+  if (state.roundIndex < challenge.rounds.length - 1) {
+    enableControls(false);
+    ctx.fillStyle = 'rgba(30, 32, 48, 0.6)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    setTimeout(() => loadRound(state.roundIndex + 1), 200);
+  } else {
+    submitDemo();
+  }
+}
+
+// ============================================================
+// Submit and scoring
+// ============================================================
+function submitDemo() {
+  resultShown = true;
+  enableControls(false);
+  const elapsedMs = performance.now() - state.startTime;
+  const totalRounds = challenge.rounds.length;
+
+  // Check each round (only count actual rounds, not extra array slots)
+  let correctCount = 0;
+  const roundResults = [];
+  for (let i = 0; i < totalRounds; i++) {
+    const final = Math.round(normalizeAngle(state.finalAngles[i])) % 360;
+    const correct = challenge.rounds[i].correctAngle;
+    // Tolerance: accept +-1 degree to handle any residual float issues
+    const isCorrect = Math.abs(final - correct) <= 1 || Math.abs(final - correct) >= 359;
+    console.log('[captcha4] Round', i+1, ': final=', final, 'correct=', correct, 'isCorrect=', isCorrect);
+    if (isCorrect) correctCount++;
+    roundResults.push({
+      round: i + 1,
+      silName: challenge.rounds[i].sil.name,
+      finalAngle: final,
+      correctAngle: correct,
+      correct: isCorrect,
+    });
+  }
+
+  // Compute confidence
+  let score = 0;
+  if (correctCount > 0) {
+    let base = 80 * (correctCount / totalRounds);
+    if (correctCount < totalRounds) base -= (totalRounds - correctCount) * 6;
+    if (elapsedMs < totalRounds * 500) {
+      base -= 18 * ((totalRounds * 500 - elapsedMs) / (totalRounds * 500));
+    }
+    if (elapsedMs > 30000) {
+      base -= 12 * Math.min(1, (elapsedMs - 30000) / 20000);
+    }
+    // Click penalty
+    let penalty = 0;
+    for (let i = 0; i < totalRounds; i++) {
+      if (state.clickCounts[i] === 0) penalty += 25;
+      if (state.clickCounts[i] >= 12) penalty += 3;
+    }
+    score = Math.max(0, Math.min(95, Math.round(base - penalty)));
+  }
+
+  // Show result
+  showResult(roundResults, correctCount, totalRounds, score, elapsedMs);
+}
+
+function showResult(roundResults, correctCount, totalRounds, score, elapsedMs) {
+  const panel = $('resultPanel');
+  panel.classList.add('visible');
+
+  // Round details
+  let html = '';
+  for (const r of roundResults) {
+    const cls = r.correct ? 'correct' : 'wrong';
+    const label = r.correct ? '✓ Верно' : `✗ ${r.finalAngle}° (нужно ${r.correctAngle}°)`;
+    html += `<div class="result-row">
+      <span class="result-label">Раунд ${r.round}: ${r.silName}</span>
+      <span class="result-value ${cls}">${label}</span>
+    </div>`;
+  }
+  $('roundResults').innerHTML = html;
+
+  // Confidence
+  const confEl = $('confidenceScore');
+  confEl.textContent = score;
+  confEl.style.color = score >= 60 ? '#ffffff' : score >= 30 ? '#E4B95A' : '#E45A5A';
+
+  // Verdict badge
+  let badge = '';
+  if (score >= 60) badge = '<span class="verdict-badge badge-human">Человек</span>';
+  else if (score >= 30) badge = '<span class="verdict-badge badge-suspicious">Подозрительно</span>';
+  else badge = '<span class="verdict-badge badge-bot">Бот</span>';
+  $('verdictBadge').innerHTML = badge;
+
+  // Summary
+  $('elapsedTime').textContent = (elapsedMs / 1000).toFixed(1) + ' сек';
+  const rCls = correctCount === totalRounds ? 'correct' : correctCount > 0 ? 'partial' : 'wrong';
+  $('roundSummary').className = 'result-value ' + rCls;
+  $('roundSummary').textContent = `${correctCount} / ${totalRounds}`;
+
+  // Animated visual feedback on canvas
+  if (correctCount === totalRounds) {
+    animateCanvasSuccess();
+  } else {
+    animateCanvasError();
+  }
+}
+
+function animateCanvasSuccess() {
+  var startTime = performance.now();
+  var duration = 600;
+  function tick() {
+    var elapsed = performance.now() - startTime;
+    var t = Math.min(1, elapsed / duration);
+    // Ease-out
+    var ease = 1 - Math.pow(1 - t, 3);
+    // Redraw current frame
+    render();
+    // Green border pulse
+    var borderAlpha = (1 - t) * 0.8;
+    var borderWidth = (3 + ease * 4) * dpr;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255, 255, 255, ' + borderAlpha + ')';
+    ctx.lineWidth = borderWidth;
+    ctx.strokeRect(borderWidth / 2, borderWidth / 2, canvas.width - borderWidth, canvas.height - borderWidth);
+    // White overlay fading out
+    ctx.fillStyle = 'rgba(255, 255, 255, ' + (0.18 * (1 - t)) + ')';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // Scale pulse effect (subtle glow shrink)
+    var glowSize = (1 - ease) * 20 * dpr;
+    if (glowSize > 1) {
+      ctx.shadowColor = 'rgba(255, 255, 255, ' + (0.5 * (1 - t)) + ')';
+      ctx.shadowBlur = glowSize;
+      ctx.strokeRect(borderWidth / 2, borderWidth / 2, canvas.width - borderWidth, canvas.height - borderWidth);
+    }
+    ctx.restore();
+    if (t < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+function animateCanvasError() {
+  var startTime = performance.now();
+  var duration = 500;
+  var shakeAmplitude = 6 * dpr;
+  function tick() {
+    var elapsed = performance.now() - startTime;
+    var t = Math.min(1, elapsed / duration);
+    // Shake offset (decaying sine)
+    var decay = 1 - t;
+    var shake = Math.sin(t * Math.PI * 6) * shakeAmplitude * decay;
+    // Redraw with offset
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, shake, 0);
+    render();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    // Red border flash
+    var borderAlpha = decay * 0.7;
+    var borderWidth = (3 + decay * 3) * dpr;
+    ctx.strokeStyle = 'rgba(228, 90, 90, ' + borderAlpha + ')';
+    ctx.lineWidth = borderWidth;
+    ctx.strokeRect(borderWidth / 2, borderWidth / 2, canvas.width - borderWidth, canvas.height - borderWidth);
+    // Red overlay fading
+    ctx.fillStyle = 'rgba(228, 90, 90, ' + (0.12 * decay) + ')';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
+    if (t < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+// ============================================================
+// Canvas Rendering
+// ============================================================
+function render() {
+  if (!challenge) return;
+  const w = canvas.width, h = canvas.height;
+  const round = challenge.rounds[state.roundIndex];
+  const rng = mulberry32(challenge.renderSeed + round.seed);
+
+  // Background
+  ctx.fillStyle = '#1E2030';
+  ctx.fillRect(0, 0, w, h);
+
+  // Background noise
+  const flags = challenge.profile.flags;
+  if (flags & 0x08) drawBgNoise(rng, w, h, challenge.profile.noise);
+
+  // Reference arrow
+  drawArrow(rng, w);
+
+  // Decoy marks
+  if (flags & 0x10) drawDecoyMarks(rng, w, h);
+
+  // Silhouette
+  drawSilhouette(round, rng);
+
+  // Round badge
+  if (challenge.rounds.length > 1) drawRoundBadge(w);
+}
+
+function drawArrow(rng, cw) {
+  const d = dpr;
+  const cx = cw / 2;
+  const top = 12 * d;
+  const len = 24 * d;
+  const wv = 1 + (rng() * 0.2 - 0.1);
+
+  ctx.save();
+  ctx.strokeStyle = '#B8B9C1';
+  ctx.lineWidth = 2.5 * d * wv;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  ctx.beginPath();
+  ctx.moveTo(cx, top + len);
+  ctx.lineTo(cx, top);
+  ctx.stroke();
+
+  const hs = 8 * d;
+  ctx.beginPath();
+  ctx.moveTo(cx - hs, top + hs);
+  ctx.lineTo(cx, top);
+  ctx.lineTo(cx + hs, top + hs);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawSilhouette(round, rng) {
+  const sil = round.sil;
+  if (!sil) return;
+  const d = dpr;
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2 + 8 * d;
+  const angleRad = state.currentAngle * Math.PI / 180;
+  const scale = 220 * d / 100;
+
+  const hue = Math.floor(rng() * 30 + 200);
+  const sat = 15 + Math.floor(rng() * 20);
+  const light = 55 + Math.floor(rng() * 15);
+  const fill = `hsl(${hue}, ${sat}%, ${light}%)`;
+
+  const flags = challenge.profile.flags;
+  const hasStroke = (flags & 0x02) !== 0;
+  const sw = hasStroke ? (0.5 + rng() * 1.5) * d : 0;
+  const sc = hasStroke ? `hsl(${hue}, ${sat + 10}%, ${light + 15}%)` : '';
+  const hasShadow = (flags & 0x04) !== 0;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(angleRad);
+  ctx.scale(scale, scale);
+  ctx.translate(-50, -50);
+
+  if (hasShadow) {
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+    ctx.shadowBlur = (2 + rng() * 4) * d;
+    ctx.shadowOffsetX = (rng() - 0.5) * 2 * d;
+    ctx.shadowOffsetY = (rng() - 0.5) * 2 * d;
+  }
+
+  ctx.fillStyle = fill;
+  for (const pathStr of sil.paths) {
+    const p = new Path2D(pathStr);
+    ctx.fill(p);
+    if (hasStroke && sw > 0) {
+      ctx.strokeStyle = sc;
+      ctx.lineWidth = sw / scale;
+      ctx.stroke(p);
+    }
+  }
+  ctx.restore();
+}
+
+function drawBgNoise(rng, w, h, level) {
+  const counts = [0, 15, 30, 55, 90];
+  const n = counts[Math.min(level, 4)] || 0;
+  ctx.save();
+  for (let i = 0; i < n; i++) {
+    ctx.beginPath();
+    ctx.arc(rng() * w, rng() * h, (rng() * 2 + 0.5) * dpr, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${Math.floor(rng() * 360)}, 20%, 40%, ${0.03 + rng() * 0.04})`;
+    ctx.fill();
+  }
+  if (level >= 3) {
+    const lc = level >= 4 ? 6 : 3;
+    for (let i = 0; i < lc; i++) {
+      ctx.beginPath();
+      ctx.moveTo(rng() * w, rng() * h);
+      ctx.lineTo(rng() * w, rng() * h);
+      ctx.strokeStyle = `rgba(120, 120, 120, ${0.02 + rng() * 0.03})`;
+      ctx.lineWidth = 0.5 * dpr;
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+function drawDecoyMarks(rng, w, h) {
+  const d = dpr;
+  const cx = w / 2, cy = h / 2 + 8 * d;
+  const r = (110 + 20) * d;
+  const n = 6 + Math.floor(rng() * 6);
+  ctx.save();
+  ctx.strokeStyle = `rgba(160, 160, 160, ${0.12 + rng() * 0.12})`;
+  ctx.lineWidth = 0.8 * d;
+  for (let i = 0; i < n; i++) {
+    const a = rng() * Math.PI * 2;
+    const l = (3 + rng() * 5) * d;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+    ctx.lineTo(cx + Math.cos(a) * (r + l), cy + Math.sin(a) * (r + l));
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawRoundBadge(cw) {
+  if (!challenge) return;
+  const d = dpr;
+  const text = `${state.roundIndex + 1}/${challenge.rounds.length}`;
+  ctx.save();
+  ctx.font = `bold ${11 * d}px -apple-system, sans-serif`;
+  const m = ctx.measureText(text);
+  const pw = 6 * d, bh = 18 * d;
+  const bw = m.width + pw * 2;
+  const bx = cw - bw - 8 * d;
+  const by = 8 * d;
+
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+  ctx.beginPath();
+  ctx.roundRect(bx, by, bw, bh, 4 * d);
+  ctx.fill();
+
+  ctx.fillStyle = '#7A7B85';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, bx + bw / 2, by + bh / 2);
+  ctx.restore();
+}
+
+// ============================================================
+// Event bindings
+// ============================================================
+$('complexitySlider').addEventListener('input', function() {
+  $('complexityValue').textContent = this.value;
+});
+
+$('btnLeft').addEventListener('click', () => {
+  if (challenge) rotateBy(-challenge.profile.step);
+});
+$('btnRight').addEventListener('click', () => {
+  if (challenge) rotateBy(challenge.profile.step);
+});
+$('btnNext').addEventListener('click', onNext);
+
+// Keyboard support
+document.addEventListener('keydown', (e) => {
+  if (!challenge || resultShown) return;
+  if (e.key === 'ArrowLeft') rotateBy(-challenge.profile.step);
+  else if (e.key === 'ArrowRight') rotateBy(challenge.profile.step);
+  else if (e.key === 'Enter') onNext();
+});
+
+// Initialize
+initCanvas();
+newChallenge();
+</script>
+
+<!-- Parent-iframe integration: incoming commands + outgoing event forwarding -->
+<script>
+(function () {
+  // Only activate when running inside an iframe
+  if (window.parent === window) return;
+
+  // --- Incoming message handler ---
+  window.addEventListener('message', function (e) {
+    if (!e.data || !e.data.type) return;
+
+    if (e.data.type === 'setComplexity') {
+      var slider = document.getElementById('complexitySlider');
+      var badge  = document.getElementById('complexityValue');
+      if (slider && e.data.value !== undefined) {
+        slider.value = Math.max(1, Math.min(100, e.data.value));
+        if (badge) badge.textContent = slider.value;
+      }
+    } else if (e.data.type === 'reset') {
+      // Trigger new challenge via the button
+      var btn = document.getElementById('refreshBtn');
+      if (btn) btn.click();
+    }
+  });
+
+  // --- Outgoing: throttled mousemove forwarding ---
+  var lastMoveAt = 0;
+  var MOVE_INTERVAL_MS = 40; // ~25 fps throttle
+
+  function postToParent(type, e) {
+    window.parent.postMessage({
+      type: type,
+      clientX: e.clientX,
+      clientY: e.clientY,
+      timestamp: performance.now()
+    }, '*');
+  }
+
+  document.addEventListener('mousemove', function (e) {
+    var now = performance.now();
+    if (now - lastMoveAt < MOVE_INTERVAL_MS) return;
+    lastMoveAt = now;
+    postToParent('captcha:mouseMove', e);
+  }, { passive: true });
+
+  // --- Outgoing: click forwarding (capture phase) ---
+  document.addEventListener('click', function (e) {
+    postToParent('captcha:click', e);
+  }, true);
+
+  // --- Outgoing: captcha:status and captcha:result ---
+  // Observe the result panel visibility and confidence score element
+  var statusSent = '';
+  var resultSent = false;
+
+  function checkResultPanel() {
+    var panel = document.getElementById('resultPanel');
+    var confEl = document.getElementById('confidenceScore');
+    if (!panel) return;
+
+    // Detect solving state (panel not visible yet, challenge started)
+    if (!panel.classList.contains('visible') && statusSent !== 'solving') {
+      statusSent = 'solving';
+      window.parent.postMessage({ type: 'captcha:status', status: 'solving' }, '*');
+    }
+
+    // Detect final result (panel becomes visible)
+    if (panel.classList.contains('visible') && confEl && !resultSent) {
+      var scoreText = confEl.textContent;
+      if (scoreText && scoreText !== '—') {
+        resultSent = true;
+        var confidence = parseInt(scoreText, 10) || 0;
+        window.parent.postMessage({ type: 'captcha:status', status: 'solved' }, '*');
+        window.parent.postMessage({ type: 'captcha:result', confidence: confidence, time: performance.now() }, '*');
+      }
+    }
+  }
+
+  // Observe the result panel for class changes
+  var panel = document.getElementById('resultPanel');
+  if (panel) {
+    new MutationObserver(function () { checkResultPanel(); })
+      .observe(panel, { attributes: true, attributeFilter: ['class'] });
+  }
+
+  // Observe confidence score text changes
+  var confEl = document.getElementById('confidenceScore');
+  if (confEl) {
+    new MutationObserver(function () { checkResultPanel(); })
+      .observe(confEl, { childList: true, characterData: true, subtree: true });
+  }
+
+  // Reset on new challenge
+  var refreshBtn = document.getElementById('refreshBtn');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', function () {
+      statusSent = '';
+      resultSent = false;
+    });
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,508 +1,836 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="utf-8">
+  <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Captcha v3 — PoW + Поведенческий анализ</title>
-  <style>
-    /* ================================================================
-       CSS RESET & BASE
-       ================================================================ */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  <title>CAPTCHA SANDBOX v6</title>
 
-    html, body {
-      background: #0F1117;
-      color: #C8C8CC;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-                   "Helvetica Neue", Arial, sans-serif;
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-      min-height: 100vh;
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Inter:wght@400;500;600&family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+
+  <style>
+    /* ==========================================================================
+       CSS VARIABLES & RESET
+       ========================================================================== */
+    :root {
+      --bg-primary: #0a0e12;
+      --bg-secondary: #111820;
+      --bg-tertiary: #0d1218;
+      --bg-card-hover: #162030;
+
+      --accent-green: #ffffff;
+      --accent-green-dim: rgba(255, 255, 255, 0.08);
+      --accent-green-glow: 0 0 10px rgba(255, 255, 255, 0.2), 0 0 20px rgba(255, 255, 255, 0.1);
+      --accent-green-glow-strong: 0 0 10px rgba(255, 255, 255, 0.4), 0 0 30px rgba(255, 255, 255, 0.2), 0 0 50px rgba(255, 255, 255, 0.08);
+      --accent-teal: #b0b0b0;
+      --accent-teal-dim: rgba(255, 255, 255, 0.06);
+
+      --text-primary: #e0e0e0;
+      --text-secondary: #6b7280;
+      --text-muted: #4a5060;
+      --text-success: #ffffff;
+      --text-error: #ff3b3b;
+      --text-warning: #e4b95a;
+
+      --border-color: #1a2332;
+      --border-active: #2a3a4a;
+
+      --font-pixel: 'Press Start 2P', 'VT323', monospace;
+      --font-vt: 'VT323', monospace;
+      --font-mono: 'Fira Code', 'JetBrains Mono', monospace;
+      --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+
+      --transition-fast: 0.15s ease;
+      --transition-normal: 0.25s ease;
     }
 
-    /* ================================================================
-       LAYOUT SHELL
-       ================================================================ */
-    .shell {
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      min-height: 100vh;
       display: flex;
       flex-direction: column;
-      min-height: 100vh;
+      overflow-x: hidden;
+      position: relative;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
 
-    /* ================================================================
-       TOP BAR
-       ================================================================ */
+    /* Grid pattern background via inline SVG data URI */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Cpath d='M0,39 L40,39 M39,0 L39,40' fill='none' stroke='%231a2332' stroke-width='1' opacity='0.3'/%3E%3C/svg%3E");
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    /* Scanline overlay — very subtle CRT effect */
+    body::after {
+      content: "";
+      display: block;
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 0, 0, 0.06) 2px,
+        rgba(0, 0, 0, 0.06) 4px
+      );
+      z-index: 9999;
+      pointer-events: none;
+    }
+
+    /* Ensure all content is above the grid pattern */
+    body > * {
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Scrollbar styling */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #2a3a4a; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #3a4a5a; }
+
+    /* ==========================================================================
+       TOP BAR / HEADER
+       ========================================================================== */
     .top-bar {
-      background: #161822;
-      border-bottom: 1px solid #23263A;
-      padding: 0 24px;
-      display: flex;
-      align-items: center;
-      gap: 24px;
       height: 56px;
-      flex-shrink: 0;
-    }
-
-    .logo {
+      background: rgba(17, 24, 32, 0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--accent-green);
       display: flex;
       align-items: center;
-      gap: 10px;
+      padding: 0 20px;
+      position: sticky;
+      top: 0;
+      z-index: 200;
+      box-shadow: 0 2px 20px rgba(255, 255, 255, 0.05);
+      overflow: hidden;
+    }
+
+    /* Animated scanning light across top bar */
+    .scan-line-anim {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 2px;
+      width: 100%;
+      background: linear-gradient(90deg, transparent 0%, var(--accent-green) 50%, transparent 100%);
+      animation: scanLine 4s linear infinite;
+    }
+
+    @keyframes scanLine {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+
+    .logo-area {
+      display: flex;
+      align-items: center;
+      gap: 12px;
       flex-shrink: 0;
     }
 
-    .logo svg {
-      width: 28px;
-      height: 28px;
+    .logo-svg {
+      width: 30px;
+      height: 30px;
+      flex-shrink: 0;
+      filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.3));
     }
 
     .logo-text {
-      font-size: 15px;
-      font-weight: 700;
-      color: #E4E4E8;
-      letter-spacing: -0.02em;
+      font-family: var(--font-pixel);
+      font-size: 11px;
+      color: var(--text-primary);
+      letter-spacing: 1px;
+      white-space: nowrap;
     }
 
-    .logo-tag {
-      font-size: 10px;
-      font-weight: 600;
-      color: #0F1117;
-      background: #4F98A3;
-      padding: 2px 6px;
-      border-radius: 4px;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
+    .version-badge {
+      font-family: var(--font-mono);
+      color: var(--accent-green);
+      font-size: 12px;
+      margin-left: 4px;
+      text-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
     }
 
-    /* ================================================================
-       TAB NAVIGATION
-       ================================================================ */
-    .tabs {
+    /* Tab navigation in top bar */
+    .nav-tabs {
       display: flex;
-      gap: 2px;
+      margin-left: auto;
+      gap: 4px;
       overflow-x: auto;
       scrollbar-width: none;
     }
 
-    .tabs::-webkit-scrollbar { display: none; }
+    .nav-tabs::-webkit-scrollbar { display: none; }
 
-    .tab-btn {
-      background: none;
-      border: none;
-      color: #7A7B85;
-      font-size: 13px;
-      font-weight: 500;
-      padding: 8px 14px;
+    .nav-tab {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      padding: 6px 14px;
       cursor: pointer;
+      transition: all var(--transition-fast);
       white-space: nowrap;
-      border-radius: 8px;
-      transition: color 0.2s, background 0.2s;
+      letter-spacing: 0.5px;
     }
 
-    .tab-btn:hover {
-      color: #B8B9C1;
-      background: rgba(255,255,255,0.04);
+    .nav-tab:hover {
+      color: var(--text-primary);
+      background: rgba(255, 255, 255, 0.04);
     }
 
-    .tab-btn.active {
-      color: #E4E4E8;
-      background: rgba(79,152,163,0.15);
+    .nav-tab.active {
+      color: var(--accent-green);
+      border-color: var(--accent-green);
+      background: var(--accent-green-dim);
+      box-shadow: inset 0 0 8px var(--accent-green-dim);
+      text-shadow: 0 0 6px rgba(255, 255, 255, 0.2);
     }
 
-    /* ================================================================
-       CONTROLS BAR (PoW toggle + difficulty)
-       ================================================================ */
-    .controls-bar {
-      background: #161822;
-      border-bottom: 1px solid #23263A;
-      padding: 0 24px;
-      display: flex;
-      align-items: center;
-      gap: 20px;
-      height: 48px;
-      flex-shrink: 0;
+    /* ==========================================================================
+       HERO SECTION
+       ========================================================================== */
+    .hero {
+      padding: 56px 24px 44px;
+      text-align: center;
+      border-bottom: 1px solid var(--border-color);
+      position: relative;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.015) 0%, transparent 100%);
     }
 
-    .control-group {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .control-label {
-      font-size: 12px;
-      font-weight: 500;
-      color: #7A7B85;
+    .hero-title {
+      font-family: var(--font-vt);
+      font-size: 56px;
+      color: var(--text-primary);
       text-transform: uppercase;
-      letter-spacing: 0.06em;
-    }
-
-    /* Toggle switch */
-    .toggle {
-      position: relative;
-      width: 38px;
-      height: 22px;
-      cursor: pointer;
-    }
-
-    .toggle input {
-      opacity: 0;
-      width: 0;
-      height: 0;
-      position: absolute;
-    }
-
-    .toggle-track {
-      position: absolute;
-      inset: 0;
-      background: #2A2D3E;
-      border-radius: 11px;
-      transition: background 0.25s;
-    }
-
-    .toggle input:checked + .toggle-track {
-      background: #4F98A3;
-    }
-
-    .toggle-thumb {
-      position: absolute;
-      top: 3px;
-      left: 3px;
-      width: 16px;
-      height: 16px;
-      background: #E4E4E8;
-      border-radius: 50%;
-      transition: transform 0.25s;
-      pointer-events: none;
-    }
-
-    .toggle input:checked ~ .toggle-thumb {
-      transform: translateX(16px);
-    }
-
-    /* Difficulty selector */
-    .diff-selector {
-      display: flex;
-      gap: 2px;
-      background: #1E2030;
-      border-radius: 6px;
-      padding: 2px;
-    }
-
-    .diff-btn {
-      background: none;
-      border: none;
-      color: #7A7B85;
-      font-size: 11px;
-      font-weight: 500;
-      padding: 4px 10px;
-      border-radius: 4px;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .diff-btn:hover { color: #B8B9C1; }
-
-    .diff-btn.active {
-      background: #2A2D3E;
-      color: #E4E4E8;
-    }
-
-    .separator {
-      width: 1px;
-      height: 24px;
-      background: #23263A;
-      flex-shrink: 0;
-    }
-
-    /* Refresh button */
-    .refresh-btn {
-      background: #1E2030;
-      border: 1px solid #2A2D3E;
-      color: #B8B9C1;
-      font-size: 12px;
-      font-weight: 500;
-      padding: 5px 14px;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: all 0.2s;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .refresh-btn:hover {
-      background: #2A2D3E;
-      color: #E4E4E8;
-      border-color: #363A50;
-    }
-
-    .refresh-btn svg {
-      width: 14px;
-      height: 14px;
-    }
-
-    /* ================================================================
-       MAIN CONTENT AREA
-       ================================================================ */
-    .main-content {
-      flex: 1;
-      display: flex;
-      overflow: hidden;
-    }
-
-    .captcha-area {
-      flex: 1;
-      padding: 24px;
-      overflow-y: auto;
+      margin-bottom: 12px;
+      letter-spacing: 4px;
+      text-shadow: 0 0 20px rgba(224, 224, 224, 0.15);
+      display: inline-block;
       position: relative;
     }
 
-    /* ================================================================
-       TAB CONTENT PANELS
-       ================================================================ */
-    .tab-panel {
-      display: none;
-      width: 100%;
-      animation: fadeIn 0.3s ease;
+    /* Typewriter / glitch title wrapper */
+    .hero-title-text {
+      display: inline;
     }
 
-    .tab-panel.active { display: block; }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(6px); }
-      to   { opacity: 1; transform: translateY(0); }
+    .cursor-blink {
+      display: inline-block;
+      width: 20px;
+      height: 42px;
+      background-color: var(--accent-green);
+      vertical-align: text-bottom;
+      margin-left: 8px;
+      animation: cursorBlink 1s step-end infinite;
+      box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
     }
 
-    /* Grid for "All 3" tab */
-    .captcha-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
-      gap: 20px;
+    @keyframes cursorBlink { 50% { opacity: 0; } }
+
+    .hero-subtitle {
+      font-family: var(--font-mono);
+      font-size: 16px;
+      color: var(--accent-teal);
+      margin-bottom: 28px;
     }
 
-    /* Single captcha frame */
-    .captcha-card {
-      background: #161822;
-      border: 1px solid #23263A;
-      border-radius: 12px;
-      overflow: hidden;
-      position: relative;
-    }
-
-    .captcha-card-header {
-      padding: 10px 14px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      border-bottom: 1px solid #23263A;
-    }
-
-    .captcha-card-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-    }
-
-    .dot-1 { background: #E45A5A; }
-    .dot-2 { background: #E4B95A; }
-    .dot-3 { background: #5AE47A; }
-
-    .captcha-card-title {
-      font-size: 12px;
-      font-weight: 500;
-      color: #7A7B85;
-    }
-
-    .captcha-card iframe {
-      width: 100%;
-      height: 520px;
-      border: none;
-      display: block;
-      background: #fff;
-    }
-
-    /* Single captcha view (centered) */
-    .single-view {
-      max-width: 800px;
-      margin: 0 auto;
-    }
-
-    .single-view .captcha-card iframe {
-      height: 580px;
-    }
-
-    /* ================================================================
-       POW OVERLAY
-       ================================================================ */
-    .pow-overlay {
-      position: absolute;
-      inset: 0;
-      background: rgba(15, 17, 23, 0.92);
-      backdrop-filter: blur(8px);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 16px;
-      z-index: 100;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.35s;
-    }
-
-    .pow-overlay.visible {
-      opacity: 1;
-      pointer-events: auto;
-    }
-
-    .pow-icon {
-      width: 48px;
-      height: 48px;
-      border: 3px solid #2A2D3E;
-      border-top-color: #4F98A3;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
-
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-
-    .pow-label {
-      font-size: 15px;
-      font-weight: 500;
-      color: #E4E4E8;
-    }
-
-    .pow-bar-wrap {
-      width: 260px;
-      height: 6px;
-      background: #2A2D3E;
-      border-radius: 3px;
-      overflow: hidden;
-    }
-
-    .pow-bar-fill {
-      width: 0%;
-      height: 100%;
-      background: linear-gradient(90deg, #4F98A3, #6BC5D2);
-      border-radius: 3px;
-      transition: width 0.12s linear;
-    }
-
-    .pow-pct {
+    .terminal-stats {
+      font-family: var(--font-mono);
       font-size: 13px;
-      color: #7A7B85;
+      color: var(--text-secondary);
+      background: var(--bg-secondary);
+      padding: 10px 24px;
+      border: 1px solid var(--border-color);
+      display: inline-block;
+      margin-bottom: 32px;
+    }
+
+    .stat-val {
+      color: var(--accent-green);
+      font-weight: 600;
       font-variant-numeric: tabular-nums;
     }
 
-    .pow-overlay.done .pow-icon {
-      animation: none;
-      border-color: #4F98A3;
+    .stat-separator {
+      color: var(--text-muted);
+      margin: 0 6px;
     }
 
-    /* ================================================================
-       BEHAVIOR ANALYSIS SIDEBAR
-       ================================================================ */
-    .behavior-panel {
-      width: 280px;
-      background: #161822;
-      border-left: 1px solid #23263A;
+    .btn-glow {
+      background: transparent;
+      color: var(--accent-green);
+      font-family: var(--font-mono);
+      font-size: 14px;
+      font-weight: 600;
+      padding: 14px 28px;
+      border: 2px solid var(--accent-green);
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      box-shadow: var(--accent-green-glow);
+      transition: all var(--transition-normal);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-glow::before { content: '> '; }
+
+    .btn-glow:hover {
+      background: var(--accent-green);
+      color: var(--bg-primary);
+      box-shadow: var(--accent-green-glow-strong);
+    }
+
+    .btn-glow:active {
+      transform: scale(0.97);
+    }
+
+    /* ==========================================================================
+       MAIN SHOWCASE AREA — 3-COLUMN LAYOUT
+       ========================================================================== */
+    .showcase-container {
+      display: grid;
+      grid-template-columns: 260px 1fr 300px;
+      gap: 0;
+      max-width: 1600px;
+      margin: 0 auto;
+      width: 100%;
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* ==========================================================================
+       PANEL COMMON STYLES
+       ========================================================================== */
+    .panel {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
       display: flex;
       flex-direction: column;
-      flex-shrink: 0;
-      overflow-y: auto;
+      position: relative;
     }
 
-    .bp-header {
-      padding: 14px 16px;
-      border-bottom: 1px solid #23263A;
-    }
-
-    .bp-title {
-      font-size: 12px;
-      font-weight: 600;
-      color: #7A7B85;
+    .panel-header {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border-color);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-secondary);
       text-transform: uppercase;
-      letter-spacing: 0.06em;
+      letter-spacing: 1.5px;
+      background: rgba(10, 14, 18, 0.6);
       display: flex;
       align-items: center;
       gap: 8px;
+      flex-shrink: 0;
     }
 
-    .bp-title svg {
+    .panel-header-icon {
       width: 14px;
       height: 14px;
-      color: #4F98A3;
+      color: var(--accent-teal);
+      flex-shrink: 0;
     }
 
-    /* Mouse trajectory canvas */
-    .trajectory-section {
-      padding: 16px;
-      border-bottom: 1px solid #23263A;
+    /* ==========================================================================
+       LEFT SIDEBAR: CAPTCHA SELECTOR
+       ========================================================================== */
+    .left-sidebar {
+      border-right: none;
     }
 
-    .trajectory-label {
-      font-size: 11px;
-      font-weight: 500;
-      color: #5A5B65;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-bottom: 8px;
+    .selector-list {
+      list-style: none;
+      padding: 8px;
+      flex: 1;
+      overflow-y: auto;
     }
 
-    .trajectory-canvas-wrap {
-      background: #1E2030;
-      border-radius: 8px;
-      overflow: hidden;
-      border: 1px solid #23263A;
+    .selector-item {
+      display: flex;
+      align-items: flex-start;
+      padding: 14px 12px;
+      margin-bottom: 4px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      border-radius: 2px;
+      gap: 12px;
     }
 
-    #trajectoryCanvas {
-      display: block;
-      width: 100%;
-      height: 150px;
+    .selector-item:last-child { margin-bottom: 0; }
+
+    .selector-item:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--border-active);
+      transform: translateX(3px);
     }
 
-    /* Scores */
-    .scores-section {
-      padding: 16px;
+    .selector-item.active {
+      background: var(--bg-card-hover);
+      border-color: var(--accent-green);
+      box-shadow: inset 3px 0 0 var(--accent-green), 0 0 12px var(--accent-green-dim);
+    }
+
+    .selector-icon-wrap {
+      width: 28px;
+      height: 28px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.5;
+      transition: all var(--transition-fast);
+    }
+
+    .selector-icon-wrap svg {
+      width: 24px;
+      height: 24px;
+    }
+
+    .selector-item.active .selector-icon-wrap {
+      opacity: 1;
+      filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.4));
+    }
+
+    .selector-info {
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 4px;
+      min-width: 0;
     }
 
-    .score-row {
+    .selector-label {
+      font-family: var(--font-sans);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      transition: color var(--transition-fast);
+    }
+
+    .selector-item.active .selector-label {
+      color: var(--accent-green);
+      text-shadow: 0 0 8px rgba(255, 255, 255, 0.2);
+    }
+
+    .selector-desc {
+      font-family: var(--font-sans);
+      font-size: 11px;
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+
+    .selector-item.active .selector-desc {
+      color: rgba(255, 255, 255, 0.45);
+    }
+
+    /* Index number indicator */
+    .selector-num {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      position: absolute;
+      right: 12px;
+    }
+
+    /* ==========================================================================
+       CENTER: IFRAME CONTAINER
+       ========================================================================== */
+    .captcha-frame-container {
+      min-height: 520px;
+      box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.3);
+    }
+
+    .frame-title-bar {
       display: flex;
       align-items: center;
       justify-content: space-between;
     }
 
-    .score-name {
-      font-size: 12px;
-      color: #7A7B85;
+    .frame-dots {
+      display: flex;
+      gap: 6px;
     }
 
-    .score-value {
-      font-size: 13px;
+    .frame-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .dot-red { background: #e45a5a; }
+    .dot-yellow { background: #e4b95a; }
+    .dot-green { background: #ffffff; }
+
+    .frame-path {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .captcha-iframe {
+      flex: 1;
+      width: 100%;
+      border: none;
+      background: #0f1117;
+      display: block;
+      min-height: 480px;
+    }
+
+    /* Loading overlay for iframe transitions */
+    .iframe-loading {
+      position: absolute;
+      inset: 40px 0 0 0;
+      background: rgba(15, 17, 23, 0.9);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+      z-index: 10;
+    }
+
+    .iframe-loading.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .loading-spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid var(--border-color);
+      border-top-color: #ffffff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-text {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    /* ==========================================================================
+       RIGHT SIDEBAR: TELEMETRY & BEHAVIOR
+       ========================================================================== */
+    .right-sidebar {
+      border-left: none;
+      overflow-y: auto;
+    }
+
+    .telemetry-content {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      flex: 1;
+    }
+
+    /* Stat groups */
+    .stat-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .stat-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* Complexity slider */
+    .complexity-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .complexity-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      flex: 1;
+      height: 4px;
+      background: var(--border-color);
+      outline: none;
+      border-radius: 2px;
+    }
+
+    .complexity-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      background: var(--accent-green);
+      cursor: pointer;
+      box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+      border-radius: 0;
+    }
+
+    .complexity-slider::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      background: var(--accent-green);
+      cursor: pointer;
+      box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+      border: none;
+      border-radius: 0;
+    }
+
+    .complexity-value {
+      font-family: var(--font-mono);
+      font-size: 18px;
+      color: var(--accent-green);
       font-weight: 600;
-      color: #E4E4E8;
+      min-width: 32px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      text-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+    }
+
+    .slider-labels {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+    }
+
+    /* Stat readouts */
+    .stat-readout {
+      font-family: var(--font-mono);
+      font-size: 20px;
+      color: var(--text-primary);
       font-variant-numeric: tabular-nums;
     }
 
-    .score-bar-bg {
-      width: 80px;
-      height: 4px;
-      background: #2A2D3E;
-      border-radius: 2px;
-      overflow: hidden;
-      margin-left: 10px;
+    .stat-unit {
+      font-size: 11px;
+      color: var(--text-secondary);
     }
 
-    .score-bar-fill {
+    /* Progress meter */
+    .meter-container {
+      height: 6px;
+      background: var(--border-color);
+      overflow: hidden;
+      margin-top: 4px;
+    }
+
+    .meter-fill {
       height: 100%;
-      border-radius: 2px;
-      transition: width 0.6s ease;
+      background: var(--accent-green);
+      width: 0%;
+      box-shadow: 0 0 6px rgba(255, 255, 255, 0.3);
+      transition: width 0.5s ease;
+    }
+
+    .meter-fill.teal {
+      background: var(--accent-teal);
+      box-shadow: 0 0 6px rgba(200, 200, 200, 0.3);
+    }
+
+    .meter-labels {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* Status indicator */
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      transition: background 0.3s;
+      flex-shrink: 0;
+    }
+
+    .status-dot.waiting { background: var(--text-secondary); }
+    .status-dot.active { background: var(--text-warning); animation: statusPulse 1.2s ease-in-out infinite; }
+    .status-dot.solved { background: #ffffff; box-shadow: 0 0 6px rgba(255, 255, 255, 0.4); }
+    .status-dot.error { background: var(--text-error); }
+
+    @keyframes statusPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .status-text {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--text-primary);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Action buttons */
+    .btn-action {
+      background: transparent;
+      color: var(--accent-green);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 8px 16px;
+      border: 1px solid var(--accent-green);
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      transition: all var(--transition-fast);
+      width: 100%;
+      text-align: center;
+    }
+
+    .btn-action:hover {
+      background: var(--accent-green);
+      color: var(--bg-primary);
+      box-shadow: var(--accent-green-glow);
+    }
+
+    .btn-action:active { transform: scale(0.97); }
+
+    /* Divider */
+    .sidebar-divider {
+      height: 1px;
+      background: var(--border-color);
+      margin: 4px 0;
+    }
+
+    /* ==========================================================================
+       BEHAVIOR TRACKING SECTION (within right sidebar)
+       ========================================================================== */
+    .behavior-section {
+      border-top: 1px solid var(--border-color);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .behavior-header {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .behavior-header svg {
+      width: 14px;
+      height: 14px;
+      color: var(--accent-teal);
+    }
+
+    .behavior-toggle-arrow {
+      margin-left: auto;
+      font-size: 10px;
+      transition: transform 0.2s;
+    }
+
+    .behavior-section.collapsed .behavior-body { display: none; }
+    .behavior-section.collapsed .behavior-toggle-arrow { transform: rotate(-90deg); }
+
+    .behavior-body {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* Trajectory canvas */
+    .trajectory-label {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .trajectory-canvas-wrap {
+      background: #0d1218;
+      border: 1px solid var(--border-color);
+      overflow: hidden;
+    }
+
+    #trajectoryCanvas {
+      display: block;
+      width: 100%;
+      height: 130px;
+    }
+
+    /* Data points counter */
+    .data-points {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .data-points .pulse-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent-teal);
+      animation: dotPulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes dotPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    /* Score rows */
+    .score-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .score-name {
+      font-size: 11px;
+      font-family: var(--font-sans);
+      color: var(--text-secondary);
+      flex-shrink: 0;
     }
 
     .score-right {
@@ -511,566 +839,1038 @@
       gap: 6px;
     }
 
-    /* Verdict badge */
-    .verdict-section {
-      padding: 16px;
-      border-top: 1px solid #23263A;
+    .score-bar-bg {
+      width: 60px;
+      height: 3px;
+      background: var(--border-color);
+      overflow: hidden;
     }
 
+    .score-bar-fill {
+      height: 100%;
+      transition: width 0.6s ease;
+      border-radius: 1px;
+    }
+
+    .score-value {
+      font-size: 11px;
+      font-weight: 600;
+      font-family: var(--font-mono);
+      color: var(--text-primary);
+      font-variant-numeric: tabular-nums;
+      min-width: 48px;
+      text-align: right;
+    }
+
+    /* Verdict */
     .verdict-card {
-      background: #1E2030;
-      border-radius: 10px;
-      padding: 14px 16px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      padding: 12px;
       text-align: center;
-      border: 1px solid #23263A;
     }
 
     .verdict-label {
-      font-size: 11px;
-      color: #5A5B65;
+      font-size: 9px;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
       text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-bottom: 6px;
+      letter-spacing: 1px;
+      margin-bottom: 4px;
     }
 
     .verdict-score {
-      font-size: 32px;
+      font-size: 26px;
       font-weight: 700;
+      font-family: var(--font-mono);
       letter-spacing: -0.02em;
       margin-bottom: 6px;
       font-variant-numeric: tabular-nums;
+      color: var(--text-primary);
     }
 
     .verdict-badge {
       display: inline-block;
-      font-size: 12px;
+      font-size: 10px;
       font-weight: 600;
-      padding: 4px 12px;
-      border-radius: 20px;
-      letter-spacing: 0.02em;
+      font-family: var(--font-mono);
+      padding: 3px 10px;
+      letter-spacing: 0.5px;
     }
 
-    .badge-human {
-      background: rgba(90, 228, 122, 0.12);
-      color: #5AE47A;
+    .badge-human { background: rgba(255, 255, 255, 0.12); color: #ffffff; }
+    .badge-suspicious { background: rgba(228, 185, 90, 0.12); color: var(--text-warning); }
+    .badge-bot { background: rgba(255, 59, 59, 0.12); color: var(--text-error); }
+
+    /* ==========================================================================
+       TECH INFO PANEL (collapsible in sidebar)
+       ========================================================================== */
+    .tech-info-section {
+      border-top: 1px solid var(--border-color);
+      padding: 16px;
     }
 
-    .badge-suspicious {
-      background: rgba(228, 185, 90, 0.12);
-      color: #E4B95A;
+    .tech-info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 0;
     }
 
-    .badge-bot {
-      background: rgba(228, 90, 90, 0.12);
-      color: #E45A5A;
+    .tech-info-key {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+      text-transform: uppercase;
     }
 
-    /* Data points counter */
-    .data-points {
-      padding: 12px 16px;
+    .tech-info-val {
       font-size: 11px;
-      color: #5A5B65;
+      font-family: var(--font-mono);
+      color: var(--text-secondary);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ==========================================================================
+       TECH SPECS SECTION (below main area)
+       ========================================================================== */
+    .tech-specs {
+      padding: 60px 24px;
+      border-top: 1px solid var(--border-color);
+      background: linear-gradient(180deg, transparent, rgba(17, 24, 32, 0.4));
+    }
+
+    .section-title {
+      font-family: var(--font-pixel);
+      font-size: 14px;
+      text-align: center;
+      margin-bottom: 40px;
+      color: var(--text-primary);
+      letter-spacing: 2px;
+    }
+
+    .section-title .accent { color: var(--accent-green); }
+
+    .specs-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .spec-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      padding: 24px;
+      transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .spec-card:hover {
+      transform: translateY(-3px);
+      border-color: var(--accent-green);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 12px var(--accent-green-dim);
+    }
+
+    .spec-title {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      color: var(--accent-green);
+      margin-bottom: 14px;
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
     }
 
-    .data-points .dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: #4F98A3;
-      animation: pulse 1.5s infinite;
+    .spec-title::before {
+      content: '>>';
+      color: var(--text-muted);
     }
 
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.3; }
+    .spec-list {
+      list-style: none;
     }
 
-    /* ================================================================
+    .spec-list li {
+      font-family: var(--font-sans);
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+      padding-left: 20px;
+      position: relative;
+      line-height: 1.5;
+    }
+
+    .spec-list li::before {
+      content: '✓';
+      color: var(--accent-green);
+      position: absolute;
+      left: 0;
+      font-size: 12px;
+    }
+
+    /* ==========================================================================
+       FOOTER
+       ========================================================================== */
+    .footer {
+      border-top: 1px solid var(--border-color);
+      padding: 20px 24px;
+      text-align: center;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      background: var(--bg-primary);
+    }
+
+    .footer .accent { color: var(--accent-green); }
+
+    /* ==========================================================================
+       TERMINAL LOG
+       ========================================================================== */
+    .terminal-log {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      padding: 10px 12px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-secondary);
+      max-height: 120px;
+      overflow-y: auto;
+      line-height: 1.6;
+    }
+
+    .log-line { margin-bottom: 2px; white-space: nowrap; }
+    .log-success { color: var(--text-success); }
+    .log-info { color: var(--accent-teal); }
+    .log-error { color: var(--text-error); }
+    .log-dim { color: var(--text-muted); }
+
+    /* ==========================================================================
        RESPONSIVE
-       ================================================================ */
-    @media (max-width: 900px) {
-      .main-content {
-        flex-direction: column;
+       ========================================================================== */
+    @media (max-width: 1279px) {
+      .showcase-container {
+        grid-template-columns: 220px 1fr;
       }
 
-      .behavior-panel {
-        width: 100%;
-        border-left: none;
-        border-top: 1px solid #23263A;
-        flex-direction: row;
-        flex-wrap: wrap;
-        max-height: 300px;
+      .right-sidebar {
+        grid-column: 1 / -1;
+        max-height: 500px;
+        overflow-y: auto;
       }
 
-      .bp-header {
-        width: 100%;
+      .right-sidebar .telemetry-content {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
       }
 
-      .trajectory-section {
-        flex: 1;
-        min-width: 200px;
+      .right-sidebar .behavior-section {
+        grid-column: 1 / -1;
       }
 
-      .scores-section {
-        flex: 1;
-        min-width: 200px;
+      .right-sidebar .terminal-log-wrap {
+        grid-column: 1 / -1;
       }
 
-      .verdict-section {
-        width: 100%;
-        border-top: none;
-        border-left: none;
+      .right-sidebar .tech-info-section {
+        grid-column: 1 / -1;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .hero-title { font-size: 32px; letter-spacing: 2px; }
+      .hero-subtitle { font-size: 13px; }
+      .hero { padding: 36px 16px 28px; }
+      .cursor-blink { width: 14px; height: 28px; }
+
+      .nav-tabs { display: none; }
+
+      .showcase-container {
+        grid-template-columns: 1fr;
+        max-width: 100%;
+        overflow-x: hidden;
       }
 
-      .captcha-grid {
+      .left-sidebar {
+        order: -1;
+      }
+
+      .selector-list {
+        display: flex;
+        overflow-x: auto;
+        padding: 8px;
+        gap: 6px;
+        scrollbar-width: none;
+      }
+
+      .selector-list::-webkit-scrollbar { display: none; }
+
+      .selector-item {
+        flex-shrink: 0;
+        margin-bottom: 0;
+        min-width: 140px;
+      }
+
+      .selector-desc { display: none; }
+
+      .captcha-frame-container {
+        max-width: 100%;
+        overflow: auto;
+      }
+
+      .captcha-iframe {
+        min-height: 400px;
+        max-width: 100%;
+      }
+
+      .right-sidebar .telemetry-content {
         grid-template-columns: 1fr;
       }
+
+      .tech-specs { padding: 40px 16px; }
+      .specs-grid { grid-template-columns: 1fr; }
+
+      .logo-text { font-size: 9px; }
+      .terminal-stats { font-size: 11px; padding: 8px 16px; }
     }
 
-    @media (max-width: 640px) {
-      .top-bar {
-        padding: 0 12px;
-        gap: 12px;
+    @media (max-width: 480px) {
+      .hero-title { font-size: 24px; }
+
+      .showcase-container {
+        padding: 0;
       }
 
-      .controls-bar {
-        padding: 0 12px;
-        gap: 10px;
-        flex-wrap: wrap;
-        height: auto;
-        padding-top: 8px;
-        padding-bottom: 8px;
+      .captcha-frame-container {
+        max-width: 100vw;
+        overflow: auto;
       }
 
-      .captcha-area {
-        padding: 12px;
+      .captcha-iframe {
+        min-height: 360px;
+        max-width: 100%;
       }
 
-      .tab-btn {
-        font-size: 12px;
-        padding: 6px 10px;
+      .panel-header {
+        padding: 8px 12px;
       }
+      .top-bar { padding: 0 12px; }
+      .logo-text { display: none; }
     }
-
-    /* ================================================================
-       SCROLLBAR STYLING
-       ================================================================ */
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #2A2D3E; border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: #363A50; }
   </style>
 </head>
 <body>
-  <div class="shell">
-    <!-- TOP BAR -->
-    <header class="top-bar">
-      <div class="logo">
-        <!-- Shield + checkmark icon -->
-        <svg viewBox="0 0 28 28" fill="none">
-          <path d="M14 2L4 6.5V13C4 19.35 8.26 25.24 14 27C19.74 25.24 24 19.35 24 13V6.5L14 2Z" fill="#4F98A3" fill-opacity="0.15" stroke="#4F98A3" stroke-width="1.5" stroke-linejoin="round"/>
-          <path d="M10 14L13 17L19 11" stroke="#4F98A3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-        <span class="logo-text">Captcha Demo</span>
-        <span class="logo-tag">v3</span>
-      </div>
-      <nav class="tabs" id="tabNav">
-        <button class="tab-btn active" data-tab="all">Все три</button>
-        <button class="tab-btn" data-tab="odd">Найди лишнее</button>
-        <button class="tab-btn" data-tab="impossible">Что невозможно?</button>
-        <button class="tab-btn" data-tab="alphabet">Нерусские буквы</button>
-        <button class="tab-btn" data-tab="combinator">Комбинатор</button>
-      </nav>
-    </header>
 
-    <!-- CONTROLS BAR -->
-    <div class="controls-bar">
-      <div class="control-group">
-        <span class="control-label">Proof-of-Work</span>
-        <label class="toggle">
-          <input type="checkbox" id="powToggle">
-          <span class="toggle-track"></span>
-          <span class="toggle-thumb"></span>
-        </label>
-      </div>
-
-      <div class="separator"></div>
-
-      <div class="control-group" id="diffGroup" style="opacity:0.4;pointer-events:none;">
-        <span class="control-label">Сложность</span>
-        <div class="diff-selector">
-          <button class="diff-btn active" data-ms="200">Лёгкий (0.2с)</button>
-          <button class="diff-btn" data-ms="500">Средний (0.5с)</button>
-          <button class="diff-btn" data-ms="2000">Сложный (2с)</button>
-        </div>
-      </div>
-
-      <div class="separator"></div>
-
-      <button class="refresh-btn" id="refreshBtn">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M13.5 7A5.5 5.5 0 1 0 12 12"/>
-          <path d="M13.5 3v4h-4"/>
-        </svg>
-        Обновить
-      </button>
+  <!-- ====================================================================
+       HEADER / TOP BAR
+       ==================================================================== -->
+  <header class="top-bar">
+    <div class="scan-line-anim"></div>
+    <div class="logo-area">
+      <!-- Inline pixel shield logo SVG -->
+      <svg class="logo-svg" viewBox="0 0 32 32">
+        <path fill="#ffffff" d="M16 2 L4 6 L4 16 C4 23 9 28 16 30 C23 28 28 23 28 16 L28 6 Z" />
+        <path fill="#0a0e12" d="M16 5 L7 8 L7 16 C7 21 11 25 16 27 C21 25 25 21 25 16 L25 8 Z" />
+        <rect fill="#ffffff" x="14" y="10" width="4" height="4" />
+        <rect fill="#ffffff" x="14" y="15" width="4" height="6" />
+        <rect fill="#ffffff" x="10" y="10" width="2" height="2" />
+        <rect fill="#ffffff" x="20" y="10" width="2" height="2" />
+        <rect fill="#ffffff" x="10" y="15" width="2" height="2" />
+        <rect fill="#ffffff" x="20" y="15" width="2" height="2" />
+        <rect fill="#ffffff" x="10" y="19" width="2" height="2" />
+        <rect fill="#ffffff" x="20" y="19" width="2" height="2" />
+      </svg>
+      <span class="logo-text">CAPTCHA_SANDBOX<span class="version-badge">[v6]</span></span>
     </div>
 
-    <!-- MAIN CONTENT -->
-    <div class="main-content">
-      <!-- CAPTCHA DISPLAY AREA -->
-      <div class="captcha-area" id="captchaArea">
-        <!-- PoW overlay -->
-        <div class="pow-overlay" id="powOverlay">
-          <div class="pow-icon"></div>
-          <div class="pow-label" id="powLabel">Подготовка...</div>
-          <div class="pow-bar-wrap">
-            <div class="pow-bar-fill" id="powBarFill"></div>
+    <nav class="nav-tabs" id="navTabs">
+      <button class="nav-tab active" data-index="0">Лишнее</button>
+      <button class="nav-tab" data-index="1">Невозможно</button>
+      <button class="nav-tab" data-index="2">Буквы</button>
+      <button class="nav-tab" data-index="3">Поворот</button>
+      <button class="nav-tab" data-index="4">Кости</button>
+    </nav>
+  </header>
+
+  <!-- ====================================================================
+       HERO SECTION
+       ==================================================================== -->
+  <section class="hero" id="heroSection">
+    <h1 class="hero-title">
+      <span class="hero-title-text" id="heroTitleText"></span><span class="cursor-blink"></span>
+    </h1>
+    <p class="hero-subtitle">5 уникальных капч &bull; PoW &bull; Поведенческий анализ</p>
+
+    <div class="terminal-stats">
+      sys.info: <span class="stat-val" id="statTypes">0</span> типов
+      <span class="stat-separator">|</span>
+      <span class="stat-val" id="statShapes">0</span>+ силуэтов
+      <span class="stat-separator">|</span>
+      <span class="stat-val" id="statCategories">0</span>+ категорий
+      <span class="stat-separator">|</span>
+      <span class="stat-val" id="statTasks">0</span>+ наборов
+    </div>
+
+    <div>
+      <button class="btn-glow" id="btnStartDemo">НАЧАТЬ_ДЕМО</button>
+    </div>
+  </section>
+
+  <!-- ====================================================================
+       MAIN SHOWCASE — 3-COLUMN LAYOUT
+       ==================================================================== -->
+  <main class="showcase-container" id="showcaseArea">
+
+    <!-- LEFT SIDEBAR: Captcha Type Selector -->
+    <aside class="panel left-sidebar">
+      <div class="panel-header">
+        <svg class="panel-header-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="2" width="5" height="5" rx="1"/>
+          <rect x="9" y="2" width="5" height="5" rx="1"/>
+          <rect x="2" y="9" width="5" height="5" rx="1"/>
+          <rect x="9" y="9" width="5" height="5" rx="1"/>
+        </svg>
+        Модули
+      </div>
+      <ul class="selector-list" id="selectorList">
+        <!-- 1. Odd One Out -->
+        <li class="selector-item active" data-index="0">
+          <div class="selector-icon-wrap">
+            <svg viewBox="0 0 32 32">
+              <path fill="none" stroke="#ffffff" stroke-width="2" d="M16 2 A14 14 0 1 0 16 30 A14 14 0 1 0 16 2" />
+              <path fill="none" stroke="#ffffff" stroke-width="2" d="M16 6 L16 12 M16 20 L16 26 M6 16 L12 16 M20 16 L26 16" />
+              <rect fill="#ffffff" x="14" y="14" width="4" height="4" />
+            </svg>
           </div>
-          <div class="pow-pct" id="powPct">0%</div>
+          <div class="selector-info">
+            <span class="selector-label">Найди лишнее</span>
+            <span class="selector-desc">Выбери лишний предмет из 6</span>
+          </div>
+        </li>
+        <!-- 2. Impossible Reality -->
+        <li class="selector-item" data-index="1">
+          <div class="selector-icon-wrap">
+            <svg viewBox="0 0 32 32">
+              <path fill="none" stroke="#ffffff" stroke-width="2" d="M16 2 L30 16 L16 30 L2 16 Z" />
+              <path fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="square" d="M12 12 A4 4 0 1 1 20 12 C20 15 16 16 16 20" />
+              <rect fill="#ffffff" x="14.5" y="22" width="3" height="3" />
+            </svg>
+          </div>
+          <div class="selector-info">
+            <span class="selector-label">Что невозможно?</span>
+            <span class="selector-desc">Найди абсурдное утверждение</span>
+          </div>
+        </li>
+        <!-- 3. Non-Russian Letters -->
+        <li class="selector-item" data-index="2">
+          <div class="selector-icon-wrap">
+            <svg viewBox="0 0 32 32">
+              <path fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="square" stroke-linejoin="miter" d="M16 6 L6 26 M16 6 L26 26 M10 20 L22 20" />
+              <path fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="square" d="M4 8 L12 8 M4 8 L4 14 M4 14 L12 14 M12 14 L12 20 L4 20 L4 14" opacity="0.5"/>
+            </svg>
+          </div>
+          <div class="selector-info">
+            <span class="selector-label">Нерусские буквы</span>
+            <span class="selector-desc">Отметь все не-кириллические</span>
+          </div>
+        </li>
+        <!-- 4. Rotation -->
+        <li class="selector-item" data-index="3">
+          <div class="selector-icon-wrap">
+            <svg viewBox="0 0 32 32">
+              <path fill="none" stroke="#ffffff" stroke-width="2.5" d="M16 6 A10 10 0 0 1 26 16 M6 16 A10 10 0 0 1 16 6 M16 26 A10 10 0 0 1 6 16 M26 16 A10 10 0 0 1 16 26" />
+              <polygon fill="#ffffff" points="26,14 28,18 24,18" />
+              <polygon fill="#ffffff" points="6,18 4,14 8,14" />
+              <polygon fill="#ffffff" points="18,6 14,4 14,8" />
+              <polygon fill="#ffffff" points="14,26 18,28 18,24" />
+              <circle fill="#ffffff" cx="16" cy="16" r="3" />
+            </svg>
+          </div>
+          <div class="selector-info">
+            <span class="selector-label">Поверни правильно</span>
+            <span class="selector-desc">Поверни объект в правильную ориентацию</span>
+          </div>
+        </li>
+        <!-- 5. Dice Assembly -->
+        <li class="selector-item" data-index="4">
+          <div class="selector-icon-wrap">
+            <svg viewBox="0 0 32 32">
+              <rect fill="none" stroke="#ffffff" stroke-width="2.5" x="6" y="6" width="20" height="20" rx="3" ry="3" />
+              <circle fill="#ffffff" cx="11" cy="11" r="2.5" />
+              <circle fill="#ffffff" cx="16" cy="16" r="2.5" />
+              <circle fill="#ffffff" cx="21" cy="21" r="2.5" />
+            </svg>
+          </div>
+          <div class="selector-info">
+            <span class="selector-label">Собери кости</span>
+            <span class="selector-desc">Найди карточку с нужной суммой</span>
+          </div>
+        </li>
+      </ul>
+    </aside>
+
+    <!-- CENTER: Captcha Demo Iframe -->
+    <div class="panel captcha-frame-container">
+      <div class="panel-header frame-title-bar">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <svg class="panel-header-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <rect x="2" y="3" width="12" height="10" rx="1"/>
+            <path d="M2 6h12"/>
+          </svg>
+          <span id="frameTitle">Execution Environment</span>
+        </div>
+        <div class="frame-dots">
+          <div class="frame-dot dot-red"></div>
+          <div class="frame-dot dot-yellow"></div>
+          <div class="frame-dot dot-green"></div>
+        </div>
+      </div>
+      <!-- Loading overlay -->
+      <div class="iframe-loading" id="iframeLoading">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Загрузка модуля...</div>
+      </div>
+      <iframe class="captcha-iframe" id="captchaIframe" src="captcha1_demo.html" title="Captcha Demo"></iframe>
+    </div>
+
+    <!-- RIGHT SIDEBAR: Live Telemetry + Behavior -->
+    <aside class="panel right-sidebar">
+      <div class="panel-header">
+        <svg class="panel-header-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2 12l3-4 3 2 4-6 2 3"/>
+          <path d="M2 14h12"/>
+        </svg>
+        Live Telemetry
+      </div>
+
+      <div class="telemetry-content">
+        <!-- Complexity Slider -->
+        <div class="stat-group">
+          <span class="stat-label">Сложность / Complexity</span>
+          <div class="complexity-wrap">
+            <input type="range" class="complexity-slider" id="complexitySlider" min="1" max="100" value="50">
+            <span class="complexity-value" id="complexityValue">50</span>
+          </div>
+          <div class="slider-labels">
+            <span>MIN</span>
+            <span>MAX</span>
+          </div>
         </div>
 
-        <!-- Tab: All three -->
-        <div class="tab-panel active" id="panel-all">
-          <div class="captcha-grid">
-            <div class="captcha-card">
-              <div class="captcha-card-header">
-                <span class="captcha-card-dot dot-1"></span>
-                <span class="captcha-card-dot dot-2"></span>
-                <span class="captcha-card-dot dot-3"></span>
-                <span class="captcha-card-title">Найди лишнее</span>
-              </div>
-              <iframe src="captcha1_demo.html" loading="lazy"></iframe>
-            </div>
-            <div class="captcha-card">
-              <div class="captcha-card-header">
-                <span class="captcha-card-dot dot-1"></span>
-                <span class="captcha-card-dot dot-2"></span>
-                <span class="captcha-card-dot dot-3"></span>
-                <span class="captcha-card-title">Что невозможно?</span>
-              </div>
-              <iframe src="captcha2_demo.html" loading="lazy"></iframe>
-            </div>
-            <div class="captcha-card">
-              <div class="captcha-card-header">
-                <span class="captcha-card-dot dot-1"></span>
-                <span class="captcha-card-dot dot-2"></span>
-                <span class="captcha-card-dot dot-3"></span>
-                <span class="captcha-card-title">Нерусские буквы</span>
-              </div>
-              <iframe src="captcha3_demo.html" loading="lazy"></iframe>
-            </div>
+        <!-- Confidence -->
+        <div class="stat-group">
+          <span class="stat-label">Confidence</span>
+          <div class="meter-container">
+            <div class="meter-fill" id="confidenceMeter" style="width:0%"></div>
+          </div>
+          <div class="meter-labels">
+            <span>Bot</span>
+            <span id="confidencePercent">0%</span>
+            <span>Human</span>
           </div>
         </div>
 
-        <!-- Tab: Odd One Out -->
-        <div class="tab-panel" id="panel-odd">
-          <div class="single-view">
-            <div class="captcha-card">
-              <div class="captcha-card-header">
-                <span class="captcha-card-dot dot-1"></span>
-                <span class="captcha-card-dot dot-2"></span>
-                <span class="captcha-card-dot dot-3"></span>
-                <span class="captcha-card-title">Найди лишнее — Odd One Out</span>
-              </div>
-              <iframe src="captcha1_demo.html" loading="lazy"></iframe>
-            </div>
+        <!-- Response Time -->
+        <div class="stat-group">
+          <span class="stat-label">Response Time</span>
+          <div class="stat-readout" id="responseTime">0 <span class="stat-unit">ms</span></div>
+        </div>
+
+        <!-- Round Counter -->
+        <div class="stat-group">
+          <span class="stat-label">Round</span>
+          <div class="stat-readout" id="roundCounter">
+            <span id="roundCurrent">0</span><span class="stat-unit"> / </span><span id="roundTotal">0</span>
           </div>
         </div>
 
-        <!-- Tab: Impossible Reality -->
-        <div class="tab-panel" id="panel-impossible">
-          <div class="single-view">
-            <div class="captcha-card">
-              <div class="captcha-card-header">
-                <span class="captcha-card-dot dot-1"></span>
-                <span class="captcha-card-dot dot-2"></span>
-                <span class="captcha-card-dot dot-3"></span>
-                <span class="captcha-card-title">Что невозможно? — Impossible Reality</span>
-              </div>
-              <iframe src="captcha2_demo.html" loading="lazy"></iframe>
-            </div>
+        <!-- Status -->
+        <div class="stat-group">
+          <span class="stat-label">Статус</span>
+          <div class="status-row">
+            <div class="status-dot waiting" id="statusDot"></div>
+            <span class="status-text" id="statusText">Ожидание</span>
           </div>
         </div>
 
-        <!-- Tab: Alphabet Filter -->
-        <div class="tab-panel" id="panel-alphabet">
-          <div class="single-view">
-            <div class="captcha-card">
-              <div class="captcha-card-header">
-                <span class="captcha-card-dot dot-1"></span>
-                <span class="captcha-card-dot dot-2"></span>
-                <span class="captcha-card-dot dot-3"></span>
-                <span class="captcha-card-title">Нерусские буквы — Alphabet Filter</span>
-              </div>
-              <iframe src="captcha3_demo.html" loading="lazy"></iframe>
-            </div>
-          </div>
-        </div>
+        <!-- Action Button -->
+        <button class="btn-action" id="btnNewTask">
+          ↻ Новое задание
+        </button>
 
-        <!-- Tab: Combinator -->
-        <div class="tab-panel" id="panel-combinator">
-          <div class="single-view">
-            <div class="captcha-card" id="combinatorCard">
-              <div class="captcha-card-header">
-                <span class="captcha-card-dot dot-1"></span>
-                <span class="captcha-card-dot dot-2"></span>
-                <span class="captcha-card-dot dot-3"></span>
-                <span class="captcha-card-title" id="combinatorTitle">Комбинатор — случайная капча</span>
-              </div>
-              <iframe id="combinatorFrame" src="" loading="lazy"></iframe>
-            </div>
+        <div class="sidebar-divider"></div>
+
+        <!-- Terminal Log -->
+        <div class="stat-group terminal-log-wrap">
+          <span class="stat-label">System Log</span>
+          <div class="terminal-log" id="termLog">
+            <div class="log-line log-dim">> init captcha_engine_v6</div>
+            <div class="log-line log-info">[SYS] ready. awaiting interaction</div>
           </div>
         </div>
       </div>
 
-      <!-- BEHAVIOR ANALYSIS SIDEBAR -->
-      <aside class="behavior-panel">
-        <div class="bp-header">
-          <div class="bp-title">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="8" cy="8" r="6"/>
-              <path d="M8 5v3l2 2"/>
-            </svg>
-            Поведенческий анализ
-          </div>
+      <!-- Behavior Tracking Section -->
+      <div class="behavior-section" id="behaviorSection">
+        <div class="behavior-header" id="behaviorToggle">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="8" cy="8" r="6"/>
+            <path d="M8 5v3l2 2"/>
+          </svg>
+          Поведенческий анализ
+          <span class="behavior-toggle-arrow">▼</span>
         </div>
-
-        <!-- Live trajectory canvas -->
-        <div class="trajectory-section">
-          <div class="trajectory-label">Траектория мыши</div>
-          <div class="trajectory-canvas-wrap">
-            <canvas id="trajectoryCanvas" width="496" height="300"></canvas>
-          </div>
-        </div>
-
-        <!-- Data points indicator -->
-        <div class="data-points">
-          <span class="dot"></span>
-          <span id="dataPointsCount">0 точек собрано</span>
-        </div>
-
-        <!-- Score rows -->
-        <div class="scores-section" id="scoresSection">
-          <div class="score-row">
-            <span class="score-name">Линейность</span>
-            <div class="score-right">
-              <div class="score-bar-bg"><div class="score-bar-fill" id="bar-linearity" style="width:0%;background:#4F98A3;"></div></div>
-              <span class="score-value" id="val-linearity">—</span>
+        <div class="behavior-body">
+          <!-- Trajectory Canvas -->
+          <div>
+            <div class="trajectory-label">Траектория мыши</div>
+            <div class="trajectory-canvas-wrap">
+              <canvas id="trajectoryCanvas" width="496" height="260"></canvas>
             </div>
           </div>
-          <div class="score-row">
-            <span class="score-name">Вариативность скорости</span>
-            <div class="score-right">
-              <div class="score-bar-bg"><div class="score-bar-fill" id="bar-velocity" style="width:0%;background:#6BC5D2;"></div></div>
-              <span class="score-value" id="val-velocity">—</span>
-            </div>
-          </div>
-          <div class="score-row">
-            <span class="score-name">Регулярность</span>
-            <div class="score-right">
-              <div class="score-bar-bg"><div class="score-bar-fill" id="bar-regularity" style="width:0%;background:#4F98A3;"></div></div>
-              <span class="score-value" id="val-regularity">—</span>
-            </div>
-          </div>
-          <div class="score-row">
-            <span class="score-name">Точность клика</span>
-            <div class="score-right">
-              <div class="score-bar-bg"><div class="score-bar-fill" id="bar-click" style="width:0%;background:#6BC5D2;"></div></div>
-              <span class="score-value" id="val-click">—</span>
-            </div>
-          </div>
-        </div>
 
-        <!-- Verdict -->
-        <div class="verdict-section">
+          <!-- Data Points -->
+          <div class="data-points">
+            <span class="pulse-dot"></span>
+            <span id="dataPointsCount">0 точек собрано</span>
+          </div>
+
+          <!-- Score Rows -->
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div class="score-row">
+              <span class="score-name">Линейность</span>
+              <div class="score-right">
+                <div class="score-bar-bg"><div class="score-bar-fill" id="bar-linearity" style="width:0%;background:#b0b0b0;"></div></div>
+                <span class="score-value" id="val-linearity">—</span>
+              </div>
+            </div>
+            <div class="score-row">
+              <span class="score-name">Вариативность</span>
+              <div class="score-right">
+                <div class="score-bar-bg"><div class="score-bar-fill" id="bar-velocity" style="width:0%;background:#d0d0d0;"></div></div>
+                <span class="score-value" id="val-velocity">—</span>
+              </div>
+            </div>
+            <div class="score-row">
+              <span class="score-name">Регулярность</span>
+              <div class="score-right">
+                <div class="score-bar-bg"><div class="score-bar-fill" id="bar-regularity" style="width:0%;background:#b0b0b0;"></div></div>
+                <span class="score-value" id="val-regularity">—</span>
+              </div>
+            </div>
+            <div class="score-row">
+              <span class="score-name">Точность клика</span>
+              <div class="score-right">
+                <div class="score-bar-bg"><div class="score-bar-fill" id="bar-click" style="width:0%;background:#d0d0d0;"></div></div>
+                <span class="score-value" id="val-click">—</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Behavior Score (separate from captcha confidence meter) -->
+          <div class="stat-group" style="margin-top:8px;">
+            <span class="stat-label" style="font-size:10px;color:var(--text-secondary);">Behavior Score</span>
+            <div class="meter-container" style="height:4px;">
+              <div class="meter-fill" id="behaviorMeter" style="width:0%;background:var(--accent-green);"></div>
+            </div>
+            <div class="meter-labels" style="font-size:9px;">
+              <span>Bot</span>
+              <span id="behaviorPercent">0%</span>
+              <span>Human</span>
+            </div>
+          </div>
+
+          <!-- Verdict -->
           <div class="verdict-card">
             <div class="verdict-label">Итоговая оценка</div>
             <div class="verdict-score" id="verdictScore">—</div>
             <div id="verdictBadge"></div>
           </div>
         </div>
-      </aside>
-    </div>
-  </div>
+      </div>
 
+      <!-- Technical Info -->
+      <div class="tech-info-section">
+        <div class="tech-info-row">
+          <span class="tech-info-key">Тип</span>
+          <span class="tech-info-val" id="techType">odd_one_out</span>
+        </div>
+        <div class="tech-info-row">
+          <span class="tech-info-key">Protocol</span>
+          <span class="tech-info-val" id="techProtocol">binary/128b</span>
+        </div>
+        <div class="tech-info-row">
+          <span class="tech-info-key">Render</span>
+          <span class="tech-info-val">canvas-only</span>
+        </div>
+      </div>
+    </aside>
+
+  </main>
+
+  <!-- ====================================================================
+       TECH SPECS SECTION
+       ==================================================================== -->
+  <section class="tech-specs">
+    <h2 class="section-title">&gt; <span class="accent">SYSTEM</span> ARCHITECTURE</h2>
+    <div class="specs-grid">
+      <div class="spec-card">
+        <h3 class="spec-title">Canvas-only рендеринг</h3>
+        <ul class="spec-list">
+          <li>Генерация прямо на Canvas — нет статических изображений</li>
+          <li>Рандомизированный шум и деформации</li>
+          <li>Динамическое масштабирование сложности</li>
+          <li>Невозможность обучения по скриншотам</li>
+        </ul>
+      </div>
+      <div class="spec-card">
+        <h3 class="spec-title">Бинарный протокол</h3>
+        <ul class="spec-list">
+          <li>Компактная передача данных (~128 байт)</li>
+          <li>Proof-of-Work защита от перебора</li>
+          <li>Шифрование ответов клиент-сервер</li>
+          <li>Минимальная задержка валидации</li>
+        </ul>
+      </div>
+      <div class="spec-card">
+        <h3 class="spec-title">Поведенческий анализ</h3>
+        <ul class="spec-list">
+          <li>Траектория мыши и скорость движения</li>
+          <li>Латентность и паттерны кликов</li>
+          <li>Анализ давления касания (Mobile)</li>
+          <li>Невидимый базовый скоринг</li>
+        </ul>
+      </div>
+      <div class="spec-card">
+        <h3 class="spec-title">Proof-of-Work (PoW)</h3>
+        <ul class="spec-list">
+          <li>Клиентские криптографические задачи</li>
+          <li>Динамическая сложность по IP-репутации</li>
+          <li>Защита от массового автоматического перебора</li>
+          <li>Нулевое влияние на легитимных пользователей</li>
+        </ul>
+      </div>
+      <div class="spec-card">
+        <h3 class="spec-title">Комбинатор капч</h3>
+        <ul class="spec-list">
+          <li>5 уникальных типов задач</li>
+          <li>Случайная ротация при каждом запросе</li>
+          <li>Настраиваемые цепочки из нескольких капч</li>
+          <li>Адаптивный выбор по уровню подозрительности</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====================================================================
+       FOOTER
+       ==================================================================== -->
+  <footer class="footer">
+    <span class="accent">root@sandbox:~#</span> CAPTCHA Sandbox v6 &bull; 5 Custom CAPTCHAs &bull; PoW + Behavior Analysis &bull; build 2026-04-04
+  </footer>
+
+  <!-- ====================================================================
+       JAVASCRIPT
+       ==================================================================== -->
   <script>
     // ================================================================
-    // TAB NAVIGATION
+    // CONFIGURATION
     // ================================================================
-    (function initTabs() {
-      var tabBtns = document.querySelectorAll('.tab-btn');
-      var panels  = document.querySelectorAll('.tab-panel');
-      var tabMap  = {
-        all:        'panel-all',
-        odd:        'panel-odd',
-        impossible: 'panel-impossible',
-        alphabet:   'panel-alphabet',
-        combinator: 'panel-combinator'
-      };
+    var CAPTCHA_FILES = [
+      { file: 'captcha1_demo.html', name: 'Найди лишнее',       tech: 'odd_one_out',       proto: 'binary/128b' },
+      { file: 'captcha2_demo.html', name: 'Что невозможно?',     tech: 'impossible_logic',  proto: 'binary/96b'  },
+      { file: 'captcha3_demo.html', name: 'Нерусские буквы',     tech: 'cyrillic_filter',   proto: 'binary/64b'  },
+      { file: 'captcha4_demo.html', name: 'Поверни правильно',   tech: 'spatial_rotation',  proto: 'binary/112b' },
+      { file: 'captcha5_demo.html', name: 'Собери кости',        tech: 'dice_assembly',     proto: 'binary/80b'  }
+    ];
 
-      tabBtns.forEach(function(btn) {
-        btn.addEventListener('click', function() {
-          var tab = btn.getAttribute('data-tab');
-          // Update active button
-          tabBtns.forEach(function(b) { b.classList.remove('active'); });
-          btn.classList.add('active');
-          // Update active panel
-          panels.forEach(function(p) { p.classList.remove('active'); });
-          var panel = document.getElementById(tabMap[tab]);
-          if (panel) panel.classList.add('active');
-          // Handle combinator tab
-          if (tab === 'combinator') {
-            loadCombinator();
-          }
-        });
+    var currentIndex = 0;
+    var responseTimer = null;
+    var responseStartTime = 0;
+    var totalRounds = 0;
+    var currentRound = 0;
+
+    // ================================================================
+    // ELEMENT REFERENCES
+    // ================================================================
+    var iframe             = document.getElementById('captchaIframe');
+    var iframeLoading      = document.getElementById('iframeLoading');
+    var selectorItems      = document.querySelectorAll('.selector-item');
+    var navTabs            = document.querySelectorAll('.nav-tab');
+    var complexitySlider   = document.getElementById('complexitySlider');
+    var complexityValue    = document.getElementById('complexityValue');
+    var confidenceMeter    = document.getElementById('confidenceMeter');
+    var confidencePercent  = document.getElementById('confidencePercent');
+    var responseTimeEl     = document.getElementById('responseTime');
+    var roundCurrentEl     = document.getElementById('roundCurrent');
+    var roundTotalEl       = document.getElementById('roundTotal');
+    var statusDot          = document.getElementById('statusDot');
+    var statusText         = document.getElementById('statusText');
+    var termLog            = document.getElementById('termLog');
+    var frameTitle         = document.getElementById('frameTitle');
+    var techType           = document.getElementById('techType');
+    var techProtocol       = document.getElementById('techProtocol');
+
+    // ================================================================
+    // TAB / CAPTCHA SWITCHING
+    // ================================================================
+    function switchCaptcha(index, forceReload) {
+      if (index === currentIndex && !forceReload) return;
+      currentIndex = index;
+      var captcha = CAPTCHA_FILES[index];
+
+      // Update selector items
+      selectorItems.forEach(function(item, i) {
+        item.classList.toggle('active', i === index);
       });
+
+      // Update nav tabs
+      navTabs.forEach(function(tab, i) {
+        tab.classList.toggle('active', i === index);
+      });
+
+      // Update frame title
+      frameTitle.textContent = captcha.name + ' — ' + captcha.tech;
+
+      // Update tech info
+      techType.textContent = captcha.tech;
+      techProtocol.textContent = captcha.proto;
+
+      // Show loading overlay
+      iframeLoading.classList.add('visible');
+
+      // Load iframe with new source
+      iframe.src = '';
+      requestAnimationFrame(function() {
+        iframe.src = captcha.file;
+      });
+
+      // Reset telemetry for new captcha
+      resetTelemetry();
+
+      // Add log entry
+      addLog('> loading module: ' + captcha.tech, 'info');
+      addLog('[SYS] complexity=' + complexitySlider.value + ' awaiting input', 'dim');
+
+      // Reset behavior data
+      resetBehaviorData();
+
+      // Send complexity to new iframe after it loads
+      iframe.onload = function() {
+        iframeLoading.classList.remove('visible');
+        sendComplexity();
+        setStatus('waiting', 'Ожидание');
+        startResponseTimer();
+        addLog('[OK] module loaded', 'success');
+      };
+    }
+
+    // Attach click handlers to selector items
+    selectorItems.forEach(function(item) {
+      item.addEventListener('click', function() {
+        var idx = parseInt(item.getAttribute('data-index'), 10);
+        switchCaptcha(idx);
+      });
+    });
+
+    // Attach click handlers to nav tabs
+    navTabs.forEach(function(tab) {
+      tab.addEventListener('click', function() {
+        var idx = parseInt(tab.getAttribute('data-index'), 10);
+        switchCaptcha(idx);
+      });
+    });
+
+    // ================================================================
+    // COMPLEXITY SLIDER → IFRAME COMMUNICATION
+    // ================================================================
+    complexitySlider.addEventListener('input', function() {
+      complexityValue.textContent = complexitySlider.value;
+      sendComplexity();
+    });
+
+    function sendComplexity() {
+      if (iframe.contentWindow) {
+        try {
+          iframe.contentWindow.postMessage({
+            type: 'setComplexity',
+            value: parseInt(complexitySlider.value, 10)
+          }, '*');
+        } catch (e) {
+          // Iframe may not be ready yet — ignore
+        }
+      }
+    }
+
+    // ================================================================
+    // NEW TASK BUTTON
+    // ================================================================
+    document.getElementById('btnNewTask').addEventListener('click', function() {
+      // Send reset command to iframe
+      if (iframe.contentWindow) {
+        try {
+          iframe.contentWindow.postMessage({ type: 'reset' }, '*');
+        } catch (e) {}
+      }
+
+      // Also reload the iframe as a fallback
+      var src = iframe.src;
+      iframe.src = '';
+      iframeLoading.classList.add('visible');
+      requestAnimationFrame(function() {
+        iframe.src = src;
+      });
+
+      resetTelemetry();
+      resetBehaviorData();
+      addLog('> reset: generating new task', 'info');
+
+      iframe.onload = function() {
+        iframeLoading.classList.remove('visible');
+        sendComplexity();
+        setStatus('waiting', 'Ожидание');
+        startResponseTimer();
+      };
+    });
+
+    // ================================================================
+    // START DEMO BUTTON (hero)
+    // ================================================================
+    document.getElementById('btnStartDemo').addEventListener('click', function() {
+      document.getElementById('showcaseArea').scrollIntoView({ behavior: 'smooth' });
+    });
+
+    // ================================================================
+    // TELEMETRY HELPERS
+    // ================================================================
+    function resetTelemetry() {
+      setConfidence(0);
+      setResponseTime(0);
+      currentRound = 0;
+      totalRounds = 0;
+      roundCurrentEl.textContent = '0';
+      roundTotalEl.textContent = '0';
+      setStatus('waiting', 'Ожидание');
+      stopResponseTimer();
+    }
+
+    function setConfidence(pct) {
+      pct = Math.round(Math.max(0, Math.min(100, pct)));
+      confidenceMeter.style.width = pct + '%';
+      confidencePercent.textContent = pct + '%';
+    }
+
+    function setResponseTime(ms) {
+      responseTimeEl.innerHTML = Math.round(ms) + ' <span class="stat-unit">ms</span>';
+    }
+
+    function setStatus(state, text) {
+      statusDot.className = 'status-dot ' + state;
+      statusText.textContent = text;
+    }
+
+    function startResponseTimer() {
+      stopResponseTimer();
+      responseStartTime = performance.now();
+      setStatus('active', 'Решается');
+      responseTimer = setInterval(function() {
+        var elapsed = performance.now() - responseStartTime;
+        setResponseTime(elapsed);
+      }, 50);
+    }
+
+    function stopResponseTimer() {
+      if (responseTimer) {
+        clearInterval(responseTimer);
+        responseTimer = null;
+      }
+    }
+
+    // ================================================================
+    // TERMINAL LOG
+    // ================================================================
+    function addLog(message, cls) {
+      var line = document.createElement('div');
+      line.className = 'log-line' + (cls ? ' log-' + cls : '');
+      line.textContent = message;
+      termLog.appendChild(line);
+      // Keep only the last 50 lines
+      while (termLog.children.length > 50) {
+        termLog.removeChild(termLog.firstChild);
+      }
+      termLog.scrollTop = termLog.scrollHeight;
+    }
+
+    // ================================================================
+    // HERO TYPEWRITER EFFECT
+    // ================================================================
+    (function initTypewriter() {
+      var titleText = 'CUSTOM CAPTCHA ENGINE';
+      var el = document.getElementById('heroTitleText');
+      var i = 0;
+      function type() {
+        if (i <= titleText.length) {
+          el.textContent = titleText.substring(0, i);
+          i++;
+          setTimeout(type, 60);
+        }
+      }
+      // Start typing after a short delay
+      setTimeout(type, 400);
     })();
 
     // ================================================================
-    // COMBINATOR — randomly pick one of 3 captchas
+    // HERO STATS COUNTER ANIMATION (tick-up)
     // ================================================================
-    var captchaFiles = [
-      { file: 'captcha1_demo.html', name: 'Найди лишнее' },
-      { file: 'captcha2_demo.html', name: 'Что невозможно?' },
-      { file: 'captcha3_demo.html', name: 'Нерусские буквы' }
-    ];
+    (function initStatsCounters() {
+      var targets = [
+        { el: document.getElementById('statTypes'),      target: 5,  duration: 800 },
+        { el: document.getElementById('statShapes'),     target: 80, duration: 1200 },
+        { el: document.getElementById('statCategories'), target: 24, duration: 1000 },
+        { el: document.getElementById('statTasks'),      target: 96, duration: 1400 }
+      ];
 
-    function loadCombinator() {
-      var idx = Math.floor(Math.random() * captchaFiles.length);
-      var chosen = captchaFiles[idx];
-      var title  = document.getElementById('combinatorTitle');
-      var frame  = document.getElementById('combinatorFrame');
-      title.textContent = 'Комбинатор — ' + chosen.name;
-
-      // Check if PoW should gate this
-      if (document.getElementById('powToggle').checked) {
-        runPow(function() {
-          // Force reload by clearing then setting src
-          frame.src = '';
-          requestAnimationFrame(function() { frame.src = chosen.file; });
+      // Use IntersectionObserver to animate when hero is visible
+      var observer = new IntersectionObserver(function(entries) {
+        entries.forEach(function(entry) {
+          if (entry.isIntersecting) {
+            targets.forEach(function(t) { animateCounter(t.el, t.target, t.duration); });
+            observer.disconnect();
+          }
         });
-      } else {
-        frame.src = '';
-        requestAnimationFrame(function() { frame.src = chosen.file; });
-      }
-    }
+      }, { threshold: 0.3 });
 
-    // ================================================================
-    // POW TOGGLE & DIFFICULTY
-    // ================================================================
-    var powToggle  = document.getElementById('powToggle');
-    var diffGroup  = document.getElementById('diffGroup');
-    var diffBtns   = document.querySelectorAll('.diff-btn');
-    var currentDiffMs = 200;
+      observer.observe(document.getElementById('heroSection'));
 
-    powToggle.addEventListener('change', function() {
-      if (powToggle.checked) {
-        diffGroup.style.opacity = '1';
-        diffGroup.style.pointerEvents = 'auto';
-      } else {
-        diffGroup.style.opacity = '0.4';
-        diffGroup.style.pointerEvents = 'none';
-      }
-    });
-
-    diffBtns.forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        diffBtns.forEach(function(b) { b.classList.remove('active'); });
-        btn.classList.add('active');
-        currentDiffMs = parseInt(btn.getAttribute('data-ms'), 10);
-      });
-    });
-
-    // ================================================================
-    // POW SIMULATION
-    // ================================================================
-    function runPow(onComplete) {
-      var overlay = document.getElementById('powOverlay');
-      var barFill = document.getElementById('powBarFill');
-      var pctEl   = document.getElementById('powPct');
-      var labelEl = document.getElementById('powLabel');
-
-      // Reset state
-      overlay.classList.remove('done');
-      overlay.classList.add('visible');
-      barFill.style.width = '0%';
-      pctEl.textContent = '0%';
-      labelEl.textContent = 'Подготовка...';
-
-      var progress = 0;
-      var duration = currentDiffMs;
-      var stepMs   = 30;
-      var steps    = Math.ceil(duration / stepMs);
-      var increment = 100 / steps;
-      var timer;
-
-      function step() {
-        progress += increment;
-        if (progress >= 100) {
-          progress = 100;
-          barFill.style.width = '100%';
-          pctEl.textContent = '100%';
-          labelEl.textContent = 'Готово';
-          overlay.classList.add('done');
-          clearInterval(timer);
-          // Hide overlay after brief pause
-          setTimeout(function() {
-            overlay.classList.remove('visible');
-            overlay.classList.remove('done');
-            if (onComplete) onComplete();
-          }, 350);
-          return;
+      function animateCounter(el, target, duration) {
+        var start = performance.now();
+        function step(now) {
+          var progress = Math.min((now - start) / duration, 1);
+          // Ease out quad
+          var eased = 1 - (1 - progress) * (1 - progress);
+          el.textContent = Math.round(eased * target);
+          if (progress < 1) requestAnimationFrame(step);
         }
-        var p = Math.round(progress);
-        barFill.style.width = p + '%';
-        pctEl.textContent = p + '%';
+        requestAnimationFrame(step);
       }
-
-      timer = setInterval(step, stepMs);
-    }
+    })();
 
     // ================================================================
-    // REFRESH BUTTON — reloads all visible iframes, optionally via PoW
+    // BEHAVIOR SECTION COLLAPSE TOGGLE
     // ================================================================
-    document.getElementById('refreshBtn').addEventListener('click', function() {
-      function doRefresh() {
-        // Find the active panel
-        var activePanel = document.querySelector('.tab-panel.active');
-        if (!activePanel) return;
-
-        // If combinator, reload combinator
-        if (activePanel.id === 'panel-combinator') {
-          loadCombinator();
-          return;
-        }
-
-        // Reload all iframes in the active panel
-        var iframes = activePanel.querySelectorAll('iframe');
-        iframes.forEach(function(iframe) {
-          var src = iframe.src;
-          iframe.src = '';
-          requestAnimationFrame(function() { iframe.src = src; });
-        });
-      }
-
-      if (powToggle.checked) {
-        runPow(doRefresh);
-      } else {
-        doRefresh();
-      }
+    document.getElementById('behaviorToggle').addEventListener('click', function() {
+      document.getElementById('behaviorSection').classList.toggle('collapsed');
     });
 
     // ================================================================
     // BEHAVIOR ANALYSIS — mouse tracking & scoring
+    // Preserved and enhanced from the existing v5 index.html
     // ================================================================
     (function initBehavior() {
       var canvas = document.getElementById('trajectoryCanvas');
       var ctx    = canvas.getContext('2d');
-      var captchaArea = document.getElementById('captchaArea');
+      var showcaseArea = document.getElementById('showcaseArea');
 
       // Tracking data
       var mouseData = [];
@@ -1078,16 +1878,40 @@
       var lastDraw  = 0;
       var analysisTimer = null;
 
-      // Canvas drawing state
+      // Canvas drawing dimensions
       var canvasW = canvas.width;
       var canvasH = canvas.height;
 
-      // Clear canvas with grid
+      // Make tracking data accessible for reset
+      window._behaviorReset = function() {
+        mouseData = [];
+        clicks    = [];
+        lastSampleTime = 0;
+        clearCanvas();
+        document.getElementById('dataPointsCount').textContent = '0 точек собрано';
+        // Reset score displays
+        ['linearity', 'velocity', 'regularity', 'click'].forEach(function(name) {
+          var bar = document.getElementById('bar-' + name);
+          var val = document.getElementById('val-' + name);
+          if (bar) bar.style.width = '0%';
+          if (val) val.textContent = '—';
+        });
+        document.getElementById('verdictScore').textContent = '—';
+        document.getElementById('verdictScore').style.color = '#e0e0e0';
+        document.getElementById('verdictBadge').innerHTML = '';
+        // Reset behavior meter
+        var bm = document.getElementById('behaviorMeter');
+        var bp = document.getElementById('behaviorPercent');
+        if (bm) bm.style.width = '0%';
+        if (bp) bp.textContent = '0%';
+      };
+
+      // Clear canvas with background grid
       function clearCanvas() {
-        ctx.fillStyle = '#1E2030';
+        ctx.fillStyle = '#0d1218';
         ctx.fillRect(0, 0, canvasW, canvasH);
         // Draw subtle grid
-        ctx.strokeStyle = 'rgba(42, 45, 62, 0.6)';
+        ctx.strokeStyle = 'rgba(26, 35, 50, 0.6)';
         ctx.lineWidth = 0.5;
         for (var x = 0; x < canvasW; x += 40) {
           ctx.beginPath();
@@ -1095,7 +1919,7 @@
           ctx.lineTo(x, canvasH);
           ctx.stroke();
         }
-        for (var y = 0; y < canvasH; y += 30) {
+        for (var y = 0; y < canvasH; y += 26) {
           ctx.beginPath();
           ctx.moveTo(0, y);
           ctx.lineTo(canvasW, y);
@@ -1105,9 +1929,9 @@
 
       clearCanvas();
 
-      // Normalize mouse position relative to captcha area to canvas coordinates
+      // Normalize mouse position to canvas coordinates
       function toCanvas(clientX, clientY) {
-        var rect = captchaArea.getBoundingClientRect();
+        var rect = showcaseArea.getBoundingClientRect();
         var nx = (clientX - rect.left) / rect.width;
         var ny = (clientY - rect.top) / rect.height;
         return {
@@ -1116,29 +1940,28 @@
         };
       }
 
-      // Draw the trajectory line
+      // Draw the trajectory line with gradient opacity
       function drawTrajectory() {
         clearCanvas();
         if (mouseData.length < 2) return;
 
-        // Draw path with gradient opacity
         var total = mouseData.length;
         for (var i = 1; i < total; i++) {
-          var alpha = 0.15 + 0.85 * (i / total);
-          ctx.strokeStyle = 'rgba(79, 152, 163, ' + alpha.toFixed(2) + ')';
-          ctx.lineWidth = 1.5 + (i / total);
+          var alpha = 0.1 + 0.9 * (i / total);
+          ctx.strokeStyle = 'rgba(200, 200, 200, ' + alpha.toFixed(2) + ')';
+          ctx.lineWidth = 1 + 1.5 * (i / total);
           ctx.beginPath();
           ctx.moveTo(mouseData[i-1].cx, mouseData[i-1].cy);
           ctx.lineTo(mouseData[i].cx, mouseData[i].cy);
           ctx.stroke();
         }
 
-        // Draw dots at click positions
+        // Draw click position dots
         clicks.forEach(function(c) {
           var pos = toCanvas(c.clientX, c.clientY);
           ctx.beginPath();
           ctx.arc(pos.cx, pos.cy, 4, 0, Math.PI * 2);
-          ctx.fillStyle = '#E45A5A';
+          ctx.fillStyle = '#e45a5a';
           ctx.fill();
           ctx.beginPath();
           ctx.arc(pos.cx, pos.cy, 7, 0, Math.PI * 2);
@@ -1152,16 +1975,17 @@
           var last = mouseData[total - 1];
           ctx.beginPath();
           ctx.arc(last.cx, last.cy, 3, 0, Math.PI * 2);
-          ctx.fillStyle = '#6BC5D2';
+          ctx.fillStyle = '#ffffff';
           ctx.fill();
+          ctx.beginPath();
+          ctx.arc(last.cx, last.cy, 6, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+          ctx.lineWidth = 1;
+          ctx.stroke();
         }
       }
 
-      // Track mouse movement across the ENTIRE page — captures movement
-      // towards, over, and away from captcha areas. This gives a full
-      // behavioral picture (trajectory to target, hesitation, etc.).
-      // Using document-level listener because iframe captures its own
-      // mousemove events and doesn't bubble them to the parent.
+      // Track mouse movement across the entire page
       var sampleInterval = 40; // ms between samples
       var lastSampleTime = 0;
 
@@ -1179,7 +2003,12 @@
           t: now
         });
 
-        // Update data points counter
+        // Keep data array bounded to prevent memory issues
+        if (mouseData.length > 2000) {
+          mouseData = mouseData.slice(-1500);
+        }
+
+        // Update counter
         document.getElementById('dataPointsCount').textContent =
           mouseData.length + ' точек собрано';
 
@@ -1189,7 +2018,7 @@
           drawTrajectory();
         }
 
-        // Debounce analysis — compute after 800ms of no movement
+        // Debounce analysis
         clearTimeout(analysisTimer);
         analysisTimer = setTimeout(computeAnalysis, 800);
       });
@@ -1202,7 +2031,6 @@
           t: performance.now()
         });
         drawTrajectory();
-        // Recompute immediately on click
         setTimeout(computeAnalysis, 100);
       });
 
@@ -1223,55 +2051,68 @@
       }
 
       window.addEventListener('message', function(e) {
-        if (!e.data || (e.data.type !== 'captcha:mouseMove' && e.data.type !== 'captcha:click')) {
-          return;
+        if (!e.data) return;
+
+        // Handle mouse/click forwarding from captcha iframes
+        if (e.data.type === 'captcha:mouseMove' || e.data.type === 'captcha:click') {
+          var iframeEl = findIframeBySource(e.source);
+          if (!iframeEl) return;
+
+          // Convert iframe-local viewport coordinates to parent viewport coordinates
+          var rect = iframeEl.getBoundingClientRect();
+          var parentX = rect.left + e.data.clientX;
+          var parentY = rect.top + e.data.clientY;
+
+          if (e.data.type === 'captcha:mouseMove') {
+            var pos = toCanvas(parentX, parentY);
+            var now = performance.now();
+            mouseData.push({
+              cx: pos.cx,
+              cy: pos.cy,
+              clientX: parentX,
+              clientY: parentY,
+              t: now
+            });
+
+            if (mouseData.length > 2000) {
+              mouseData = mouseData.slice(-1500);
+            }
+
+            document.getElementById('dataPointsCount').textContent =
+              mouseData.length + ' точек собрано';
+
+            if (now - lastDraw > 50) {
+              lastDraw = now;
+              drawTrajectory();
+            }
+
+            clearTimeout(analysisTimer);
+            analysisTimer = setTimeout(computeAnalysis, 800);
+          } else if (e.data.type === 'captcha:click') {
+            clicks.push({
+              clientX: parentX,
+              clientY: parentY,
+              t: performance.now()
+            });
+            drawTrajectory();
+            setTimeout(computeAnalysis, 100);
+          }
         }
 
-        var iframe = findIframeBySource(e.source);
-        if (!iframe) return;
+        // Handle result messages from captcha iframes
+        if (e.data.type === 'captcha:result') {
+          handleCaptchaResult(e.data);
+        }
 
-        // Convert iframe-local viewport coordinates to parent viewport coordinates
-        var rect = iframe.getBoundingClientRect();
-        var parentX = rect.left + e.data.clientX;
-        var parentY = rect.top + e.data.clientY;
-
-        if (e.data.type === 'captcha:mouseMove') {
-          var pos = toCanvas(parentX, parentY);
-          var now = performance.now();
-          mouseData.push({
-            cx: pos.cx,
-            cy: pos.cy,
-            clientX: parentX,
-            clientY: parentY,
-            t: now
-          });
-
-          // Update data points counter
-          document.getElementById('dataPointsCount').textContent =
-            mouseData.length + ' точек собрано';
-
-          // Redraw trajectory (throttled)
-          if (now - lastDraw > 50) {
-            lastDraw = now;
-            drawTrajectory();
-          }
-
-          // Debounce analysis
-          clearTimeout(analysisTimer);
-          analysisTimer = setTimeout(computeAnalysis, 800);
-        } else if (e.data.type === 'captcha:click') {
-          clicks.push({
-            clientX: parentX,
-            clientY: parentY,
-            t: performance.now()
-          });
-          drawTrajectory();
-          setTimeout(computeAnalysis, 100);
+        // Handle status updates from captcha iframes
+        if (e.data.type === 'captcha:status') {
+          handleCaptchaStatus(e.data);
         }
       });
 
       // ================================================================
       // BEHAVIOR SCORING ALGORITHMS
+      // (Preserved from existing v5 implementation)
       // ================================================================
       function computeAnalysis() {
         if (mouseData.length < 5) return;
@@ -1281,7 +2122,7 @@
         var regularity = computeRegularity();
         var clickScore = computeClickAccuracy();
 
-        // Weighted total
+        // Weighted total score
         var total = Math.round(
           linearity  * 0.25 +
           velocity   * 0.30 +
@@ -1289,25 +2130,31 @@
           clickScore * 0.20
         );
 
-        // Update UI
+        // Update score UI
         updateScore('linearity',  linearity);
         updateScore('velocity',   velocity);
         updateScore('regularity', regularity);
         updateScore('click',      clickScore);
 
-        // Verdict
+        // Update behavior score indicator (separate from captcha confidence meter)
+        var behaviorMeter = document.getElementById('behaviorMeter');
+        var behaviorPercent = document.getElementById('behaviorPercent');
+        if (behaviorMeter) behaviorMeter.style.width = total + '%';
+        if (behaviorPercent) behaviorPercent.textContent = total + '%';
+
+        // Verdict display
         var verdictScoreEl = document.getElementById('verdictScore');
         var verdictBadgeEl = document.getElementById('verdictBadge');
         verdictScoreEl.textContent = total + '/100';
 
         if (total > 60) {
-          verdictScoreEl.style.color = '#5AE47A';
+          verdictScoreEl.style.color = '#ffffff';
           verdictBadgeEl.innerHTML = '<span class="verdict-badge badge-human">Человек</span>';
         } else if (total < 40) {
-          verdictScoreEl.style.color = '#E45A5A';
+          verdictScoreEl.style.color = '#ff3b3b';
           verdictBadgeEl.innerHTML = '<span class="verdict-badge badge-bot">Бот?</span>';
         } else {
-          verdictScoreEl.style.color = '#E4B95A';
+          verdictScoreEl.style.color = '#e4b95a';
           verdictBadgeEl.innerHTML = '<span class="verdict-badge badge-suspicious">Подозрительно</span>';
         }
       }
@@ -1319,9 +2166,7 @@
         if (val) val.textContent = value + '/100';
       }
 
-      // Linearity: how non-linear the mouse path is.
-      // Human paths have moderate angle changes — not perfectly straight (bot)
-      // and not completely random.
+      // Linearity: how non-linear the mouse path is
       function computeLinearity() {
         if (mouseData.length < 3) return 50;
 
@@ -1341,26 +2186,20 @@
 
         if (angleChanges.length === 0) return 50;
 
-        // Average angle change, normalized: human typical is 0.2-0.8 radians
         var avg = angleChanges.reduce(function(a, b) { return a + b; }, 0) / angleChanges.length;
-        // Map to 0-100: peak score around 0.3-0.5 rad
         var score;
         if (avg < 0.05) {
-          // Too straight — bot-like
           score = 20 + avg / 0.05 * 30;
         } else if (avg < 0.6) {
-          // Good human range
           score = 50 + (1 - Math.abs(avg - 0.3) / 0.3) * 50;
         } else {
-          // Too erratic
           score = Math.max(10, 80 - (avg - 0.6) * 100);
         }
 
         return Math.round(Math.max(0, Math.min(100, score)));
       }
 
-      // Velocity variance: humans have varied speeds.
-      // Bots tend to be constant.
+      // Velocity variance: humans have varied speeds
       function computeVelocityVariance() {
         if (mouseData.length < 3) return 50;
 
@@ -1380,9 +2219,8 @@
           return a + d * d;
         }, 0) / speeds.length;
         var stdV = Math.sqrt(variance);
-        var cv = stdV / meanV; // coefficient of variation
+        var cv = stdV / meanV;
 
-        // Human CV typically 0.3-1.5; bots near 0
         var score;
         if (cv < 0.1) {
           score = 15 + cv / 0.1 * 25;
@@ -1395,8 +2233,7 @@
         return Math.round(Math.max(0, Math.min(100, score)));
       }
 
-      // Regularity: how irregular the timing intervals are.
-      // Bots have perfectly regular intervals; humans vary.
+      // Regularity: how irregular the timing intervals are
       function computeRegularity() {
         if (mouseData.length < 3) return 50;
 
@@ -1415,10 +2252,8 @@
         var stdI = Math.sqrt(variance);
         var cv = stdI / meanI;
 
-        // Human timing CV: typically 0.1-0.8; bots near 0
         var score;
         if (cv < 0.05) {
-          // Too regular — bot-like
           score = 10 + cv / 0.05 * 30;
         } else if (cv < 0.8) {
           score = 40 + (cv / 0.8) * 55;
@@ -1429,8 +2264,7 @@
         return Math.round(Math.max(0, Math.min(100, score)));
       }
 
-      // Click accuracy: how close clicks are to the trajectory.
-      // Measures click position stability and proximity to recent movement.
+      // Click accuracy: proximity of clicks to the trajectory
       function computeClickAccuracy() {
         if (clicks.length === 0) return 50;
         if (mouseData.length < 2) return 50;
@@ -1438,8 +2272,6 @@
         var scores = [];
         clicks.forEach(function(click) {
           var pos = toCanvas(click.clientX, click.clientY);
-
-          // Find the nearest trajectory point by time
           var closestDist = Infinity;
           for (var i = 0; i < mouseData.length; i++) {
             var dx = pos.cx - mouseData[i].cx;
@@ -1447,8 +2279,6 @@
             var dist = Math.sqrt(dx*dx + dy*dy);
             if (dist < closestDist) closestDist = dist;
           }
-
-          // Normalize distance: 0 = exact, 100px = far
           var maxDist = 80;
           var s = Math.max(0, 1 - closestDist / maxDist) * 100;
           scores.push(s);
@@ -1457,37 +2287,100 @@
         var avg = scores.reduce(function(a, b) { return a + b; }, 0) / scores.length;
         return Math.round(Math.max(0, Math.min(100, avg)));
       }
+    })();
 
-      // ================================================================
-      // Reset behavior data when tab changes or refresh
-      // ================================================================
-      document.querySelectorAll('.tab-btn').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-          mouseData = [];
-          clicks    = [];
-          lastSampleTime = 0;
-          clearCanvas();
-          document.getElementById('dataPointsCount').textContent = '0 точек собрано';
-          // Reset scores
-          ['linearity', 'velocity', 'regularity', 'click'].forEach(function(name) {
-            var bar = document.getElementById('bar-' + name);
-            var val = document.getElementById('val-' + name);
-            if (bar) bar.style.width = '0%';
-            if (val) val.textContent = '—';
-          });
-          document.getElementById('verdictScore').textContent = '—';
-          document.getElementById('verdictScore').style.color = '#E4E4E8';
-          document.getElementById('verdictBadge').innerHTML = '';
-        });
-      });
+    // ================================================================
+    // CAPTCHA RESULT HANDLER
+    // Updates telemetry when a captcha sends back results
+    // ================================================================
+    function handleCaptchaResult(data) {
+      // Stop response timer
+      stopResponseTimer();
+      var elapsed = performance.now() - responseStartTime;
+      setResponseTime(elapsed);
 
-      document.getElementById('refreshBtn').addEventListener('click', function() {
-        mouseData = [];
-        clicks    = [];
-        lastSampleTime = 0;
-        clearCanvas();
-        document.getElementById('dataPointsCount').textContent = '0 точек собрано';
-      });
+      // Update round counter
+      if (data.round !== undefined) {
+        currentRound = data.round;
+        roundCurrentEl.textContent = currentRound;
+      } else {
+        currentRound++;
+        roundCurrentEl.textContent = currentRound;
+      }
+      if (data.totalRounds !== undefined) {
+        totalRounds = data.totalRounds;
+        roundTotalEl.textContent = totalRounds;
+      }
+
+      // Update confidence from result
+      if (data.confidence !== undefined) {
+        setConfidence(data.confidence);
+      }
+
+      // Set status based on confidence level (captchas send confidence, not correct/wrong)
+      if (data.correct !== undefined) {
+        // Explicit correct/wrong flag (if provided)
+        if (data.correct) {
+          setStatus('solved', 'Решено ✓');
+          addLog('[OK] correct answer (' + Math.round(elapsed) + 'ms)', 'success');
+        } else {
+          setStatus('error', 'Ошибка ✗');
+          addLog('[ERR] wrong answer (' + Math.round(elapsed) + 'ms)', 'error');
+        }
+      } else if (data.confidence !== undefined) {
+        // Infer result from confidence score
+        if (data.confidence >= 55) {
+          setStatus('solved', 'Решено ✓');
+          addLog('[OK] confidence ' + data.confidence + '% (' + Math.round(elapsed) + 'ms)', 'success');
+        } else if (data.confidence > 0) {
+          setStatus('error', 'Частично ✗');
+          addLog('[WARN] confidence ' + data.confidence + '% (' + Math.round(elapsed) + 'ms)', 'error');
+        } else {
+          setStatus('error', 'Ошибка ✗');
+          addLog('[ERR] confidence 0% (' + Math.round(elapsed) + 'ms)', 'error');
+        }
+      }
+    }
+
+    function handleCaptchaStatus(data) {
+      if (data.status === 'started' || data.status === 'solving') {
+        startResponseTimer();
+        setStatus('active', 'Решается');
+      } else if (data.status === 'solved') {
+        // Status will be refined by handleCaptchaResult when it arrives
+        setStatus('solved', 'Решено');
+      } else if (data.status === 'error') {
+        setStatus('error', 'Ошибка');
+      } else if (data.status === 'round') {
+        if (data.round !== undefined) roundCurrentEl.textContent = data.round;
+        if (data.totalRounds !== undefined) roundTotalEl.textContent = data.totalRounds;
+      }
+    }
+
+    // ================================================================
+    // RESET BEHAVIOR DATA (called on tab switch / new task)
+    // ================================================================
+    function resetBehaviorData() {
+      if (window._behaviorReset) {
+        window._behaviorReset();
+      }
+    }
+
+    // ================================================================
+    // INITIAL LOAD — set up iframe with first captcha
+    // ================================================================
+    (function init() {
+      // The first captcha is already set as src in HTML
+      iframe.onload = function() {
+        iframeLoading.classList.remove('visible');
+        sendComplexity();
+        setStatus('waiting', 'Ожидание');
+        startResponseTimer();
+        addLog('[OK] module odd_one_out loaded', 'success');
+      };
+
+      // Update initial tech info
+      frameTitle.textContent = CAPTCHA_FILES[0].name + ' — ' + CAPTCHA_FILES[0].tech;
     })();
   </script>
 </body>
